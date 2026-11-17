@@ -753,7 +753,7 @@ soon as Org-mode is implemented in Neovim — any decade now.
 
 ## Prior art
 
-gliter stands on the shoulders of, in chronological order:
+gliter stands on the shoulders of:
 
 **Emacs**, which had every idea here decades early:
 
