@@ -1,9 +1,0 @@
-title: gliter.nvim
-description: Emacs ideas, Neovim-native — an opt-in plugin suite.
-theme: jekyll-theme-minimal
-plugins:
-  - jekyll-relative-links
-  - jekyll-readme-index
-relative_links:
-  enabled: true
-  collections: false
