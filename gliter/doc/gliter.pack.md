@@ -1,0 +1,193 @@
+# gliter.pack
+
+> **Deprecated — this module is on its way out.** A locally cached
+> awesome-neovim list was the only thing it offered over a real package
+> browser, and a cache is not much of a feature. Until the removal,
+> everything below keeps working; nothing else depends on it.
+
+MELPA's browsing for Neovim (0.10+): search, inspect and install plugins
+from inside the editor — a local index of the ecosystem, a floating
+package menu, no browser, no telescope.
+
+## Stolen from Emacs
+
+[package.el](https://www.gnu.org/software/emacs/manual/html_node/emacs/Packages.html)
+(2007) and [MELPA](https://melpa.org) (2012): a package list you can
+browse from the editor, read about each entry, mark what you want, and
+pull a ready-made configuration from. The index here is
+[awesome-neovim](https://github.com/rockerBOO/awesome-neovim)'s directory,
+fetched with curl and cached under `stdpath('data')` — refreshed after
+`cache_days` (7), or now with `R` / `:GliterPackUpdate`.
+
+## Use it
+
+```
+:GliterPack fuzzy
+```
+
+opens the package menu — a centered floating window with a query line on
+top and the matches under it. **No argument at all lists everything**,
+Emacs `list-packages` style:
+
+```
+:GliterPack
+```
+
+Every typed character filters — all the words must appear,
+case-insensitive, in the name, the category or the description; name
+hits rank higher. `<BS>` edits, `<C-u>` clears, `<C-n>` / `<C-p>` /
+`<C-j>` / `<C-k>` (and the arrows, and `G`) walk the matches, `?` shows
+the whole key list at the top of the window.
+
+The window has two modes, shown in the header:
+
+- **TYPE** (the one it opens in) — every printable character filters.
+  Lowercase letters are filter keys, which is why the actions live on
+  uppercase and Ctrl — typing `telescope` must filter, not act.
+- **NORMAL** — `<Esc>` switches to it, `i` or `a` come back. Here the
+  buffer is a plain buffer: `j`/`k`, `gg`/`G`, `/` — vim's own keys
+  work, and **`q` closes** (in TYPE mode `q` types a `q` into the
+  query). `<Esc>` never closes the window.
+
+| Key | Action |
+|-----|--------|
+| `I` | **mark** the entry for install (`I` again unmarks) — Emacs' `i` |
+| `X` | **install**: every marked entry, else the one under the cursor — it **asks first**, then does it |
+| `D` | **delete** the installed entry under the cursor (asks first): the spec file or the clone gliter.pack made |
+| `<CR>` | open the repository in the browser (`vim.ui.open`) |
+| `<C-y>` | yank the repository URL |
+| `<C-e>` | yank a lazy.nvim spec line: `{ "owner/repo" }` |
+| `<C-r>` | fetch the README, pull its **recommended setup** — the first lua block that configures the plugin — into a review float |
+| `<C-a>` | the **install sheet**: the spec ready to save, the setup snippet commented alongside |
+| `R` | refetch the index |
+| `q`, `Q` | close (NORMAL mode for `q`; `Q` always) |
+
+A `+` before a name marks an **installed** plugin — the spec or clone
+gliter.pack knows about.
+
+## Installing, and uninstalling
+
+`X` **asks first** — what, through which manager, landing where — and
+then just does it: for each entry a spec is written where your manager
+looks, with the README's recommended setup commented below it (review,
+then uncomment what you want). `manager = 'auto'` (the default) picks:
+
+- **lazy.nvim** — when `require('lazy')` loads or
+  `~/.config/nvim/lua/plugins/` exists: the spec lands in
+  `lua/plugins/<plugin>.lua`; restart and `:Lazy sync`.
+- **vim.pack** (Neovim 0.12+) — a `plugin/gliter-pack-<plugin>.lua` in
+  your config that calls `vim.pack.add({ 'https://github.com/owner/repo' })`;
+  the next start fetches the repo.
+- **clone** — none of the above: `git clone --depth=1` into
+  `stdpath('data')/site/pack/gliter/start/`, which is on the packpath;
+  restart or `:packadd <plugin>`.
+
+Name one in `setup { manager = 'lazy' | 'native' | 'clone' }` to pin it.
+What was written, and where, is said in each notice.
+
+`D` on an installed entry **deletes** it, after the same kind of
+confirm: the spec file or the clone gliter.pack wrote — restart nvim
+and the plugin is gone (for a lazy.nvim clone, `:Lazy clean` reclaims
+the directory). A plugin gliter.pack did not install is pointed at,
+not touched — `D` says whose it is instead of deleting it.
+
+Without an `X`, nothing of yours is touched: `<C-r>` and `<C-a>` open
+**review floats** — plain lua buffers with the snippet in them and the
+suggested path written at the top and in the notice. Read them, adapt
+them, then `:w` where your setup lives:
+
+```lua
+-- <C-a> on telescope.nvim gives you a buffer shaped like:
+return { "nvim-telescope/telescope.nvim" }
+
+-- The README recommended setup, for when you want it (uncomment and
+-- move it into the spec as config = function() ... end):
+-- require('telescope').setup { ... }
+```
+
+## When the network is the problem
+
+Each source has **mirrors**, tried in order until one answers —
+jsDelivr's endpoints first (`fastly.jsdelivr.net`, `cdn.jsdelivr.net`;
+raw.githubusercontent.com is the hop most often unreachable), then
+GitHub itself, master and main both: a `:GliterPack nvim` that comes
+back empty is usually every hop of the first fetch having failed, and
+one of the later ones fills the index anyway. When every mirror fails
+but a cached copy exists — however stale — **the stale copy is used**
+instead of nothing, and the notice says so with each hop's error. `R`
+retries the whole ladder. Add your own on the same shape:
+
+```lua
+require('gliter.pack').setup {
+  sources = {
+    {
+      name = 'awesome-neovim',
+      mirrors = {
+        'https://raw.githubusercontent.com/rockerBOO/awesome-neovim/master/README.md',
+        'https://cdn.jsdelivr.net/gh/rockerBOO/awesome-neovim@master/README.md',
+      },
+    },
+  },
+}
+```
+
+## Options
+
+```lua
+require('gliter.pack').setup {
+  sources = {              -- any awesome-list style markdown works:
+    {                      -- `## category` headings, `- [name](url) — desc`
+      name = 'awesome-neovim',
+      mirrors = {          -- tried in order until one answers
+        'https://fastly.jsdelivr.net/gh/rockerBOO/awesome-neovim@master/README.md',
+        'https://cdn.jsdelivr.net/gh/rockerBOO/awesome-neovim@master/README.md',
+        'https://raw.githubusercontent.com/rockerBOO/awesome-neovim/master/README.md',
+        'https://gcore.jsdelivr.net/gh/rockerBOO/awesome-neovim@master/README.md',
+        'https://raw.githubusercontent.com/rockerBOO/awesome-neovim/main/README.md',
+      },
+    },
+  },
+  cache_days = 7,          -- a cached index older than this refetches;
+                           -- every mirror failing falls back to the stale copy
+  timeout = 10,            -- seconds a mirror gets before the next
+  width = 0.9,             -- the float's width; <= 1 is a fraction
+  height = 0.8,            -- the float's height; <= 1 is a fraction
+  max_results = 300,       -- matches shown at most (a filtered query)
+  browse_max = 3000,       -- entries listed when browsing with no query
+  manager = 'auto',        -- 'auto' | 'lazy' | 'native' | 'clone'
+  curl = 'curl',           -- the fetch binary (-fsSL --max-time timeout)
+  keys = {                 -- all buffer-local to the pack window
+    open = '<CR>',
+    yank = '<C-y>',
+    spec = '<C-e>',
+    setup = '<C-r>',
+    install = '<C-a>',
+    close = 'q',           -- q/Q close; <Esc> switches to NORMAL mode
+  },
+}
+```
+
+or through gliter: `require('gliter').setup { pack = true }`.
+
+Commands: `:GliterPack [query]` (no argument: everything),
+`:GliterPackUpdate` (refetch now).
+
+## Notes
+
+- The "recommended setup" is the first ```lua block in the README that
+  mentions `require(` *and* `setup`/`config`/`opts`; without a match the
+  first block that requires anything; without that, the first lua block
+  of all. It is a starting point to review, not gospel — keymaps and
+  colors are yours.
+- Only GitHub repositories have a README fetch (`<C-r>` says so for the
+  rest); every source's entries still search, yank, open and install the
+  same.
+- The cached index is plain markdown under
+  `stdpath('data')/gliter/pack/` — look at it, or replace it with a
+  list of your own on the same shape. Entries whose link is not absolute
+  http(s) (the list's own table of contents) are skipped, and a plugin
+  listed under two categories appears once.
+
+Requires Neovim 0.10+ (`vim.system`, `vim.ui.open`) and curl on the
+`PATH`; the first `:GliterPack` fills the cache, after that everything
+is local until the cache goes stale.

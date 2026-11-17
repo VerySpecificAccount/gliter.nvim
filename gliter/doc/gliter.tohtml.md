@@ -1,0 +1,54 @@
+# gliter.tohtml
+
+The buffer — or the selection — out: HTML with the buffer's own syntax
+colors, Markdown as a fenced code block, or PDF, typeset by groff.
+
+```lua
+require('gliter').setup { tohtml = {} }
+-- or on its own:
+require('gliter.tohtml').setup {}
+```
+
+| Command | What it does |
+|---------|--------------|
+| `:GliterTohtml` | **HTML**: the range (the whole buffer by default) in a new buffer named `<file>.html`, every character's highlight a `<span>` style — the TOhtml idea, in Lua, on a `<pre>` in the buffer's Normal colors |
+| `:GliterTohtml md` | **Markdown**: the range as one ` ```lang ` fence (the buffer's filetype as the language) |
+| `:GliterTohtml pdf` | **PDF**: `groff -Tpdf -ms` typesets the range, the syntax colors carried in as `\m[]` requests, bold and italic as `\fB`/`\fI`; written next to you as `<file>.pdf` |
+
+All three take a range — `:'<,'>GliterTohtml pdf` is the selected lines
+only. The HTML and Markdown outputs open in new buffers for you to
+`:w` where you want them; the PDF lands directly on disk (groff 1.22+
+must be on your `$PATH`).
+
+```lua
+require('gliter.tohtml').setup {
+  groff = 'groff',      -- the pdf engine; false turns the pdf target off
+  pdf_width = 100,      -- display columns a pdf line gets before a hard
+                        -- split (the color the split cuts through is
+                        -- carried to the next line)
+  pdf_font_size = 8,    -- points
+}
+```
+
+## Notes
+
+- The colors come from the classic syntax engine (`:syntax on`), through
+  the same `synID()` door `:TOhtml` used — where a highlight carries only
+  a terminal color, the 16 ANSI colors are mapped to their usual hex.
+- Underline and other decorations render in the HTML; groff gets colors,
+  bold and italic.
+- groff does not wrap no-fill lines: longer than `pdf_width` display
+  columns, a line is split hard at the width. Raise `pdf_width` (and
+  lower `pdf_font_size`) for wide code.
+
+## Stolen from
+
+Vim's `2html.vim` (Bram Moolenaar, 2001) — `:TOhtml` — which shipped the
+HTML-with-syntax-colors export for a quarter century before Neovim
+dropped it; Emacs'
+[htmlize.el](https://github.com/emacsmirror/htmlize) (Hrvoje Niksic,
+1997), which has been exporting buffers with their faces since before
+Neovim existed; and groff — troff (Joe Ossanna, 1973; James Clark's
+groff, 1990) — which typesets the PDF.
+
+Requires Neovim 0.10+ (`vim.system` for the pdf target).

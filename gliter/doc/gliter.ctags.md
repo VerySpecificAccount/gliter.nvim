@@ -1,0 +1,155 @@
+# gliter.ctags
+
+The built-in ctags support, with better defaults, a simpler interface and
+quickfix on top (Neovim 0.10+; needs `ctags` in `$PATH` —
+[universal-ctags](https://github.com/universal-ctags/ctags) recommended,
+exuberant-ctags works too).
+
+Vim has spoken the tags dialect since 1991 — `:tag`, `<C-]>`, the `tags`
+option — but the defaults are a rusty `ctags -R .` in the project root and
+a horizontal `:tselect`. gliter.ctags keeps all of the built-in machinery
+and fixes the parts around it.
+
+## What it does
+
+- **Generates the tags file properly**: through universal-ctags with the
+  flags that matter for editing — qualified tags (`--extras=+q`, so
+  `Class.method` resolves), line numbers and signatures (`--fields=+nS`) —
+  recursing the project root (`.git` and friends locate it) while
+  skipping `.git`, `node_modules`, `build`, `dist`, `target` — and
+  `.cache`, venvs, `__pycache__` and friends. Exuberant-ctags is detected
+  and spoken to in its own dialect. A run that fails does not give up:
+  a stale `--langdef=` for a language ctags already knows — hiding in
+  `~/.ctags.d`, `~/.ctags`, a `.ctags` in the working directory, or
+  `$CTAGS` — makes every run die with `ctags: Language "css" already
+  defined`, so a failure is retried with the preload option files off
+  (`--options=NONE`), and then **from a sandbox**: a scratch directory,
+  a dark `HOME`, a scrubbed environment and absolute paths — nowhere an
+  option file can hide, whichever ctags flavor it is (exuberant has no
+  `--options=NONE`; the sandbox is its only defense). One rule of
+  universal-ctags' own command line matters here: `--options=NONE` is
+  only honored as the **first** option — the leading options are scanned
+  for it and the scan stops at the first flag it does not know, so
+  anywhere later NONE is parsed as an option *file* literally so named
+  and the run dies with `ctags: cannot stat "NONE" : No such file or
+  directory`. gliter always puts it first. The ladder
+  restarts from the first rung every time: a fallback that worked
+  yesterday must not hide the one that works today, and the final
+  failure prints the exact command it tried.
+- **A loose file never means a whole-directory run**: a buffer with no
+  project root above it (a lone `main.c` on the Desktop, where everything
+  else also lives) gets single-file tags — cached under
+  `stdpath('data')`, absolute names inside, regenerated on save like a
+  project's — never a recursive `ctags -R` over the directory it happens
+  to sit in (that is how 300 MB tags files happen; a tags file over
+  `warn_mb` MB earns a warning that the root is too broad, and one over
+  it is never spliced in one piece). `$HOME` itself never counts as a
+  root (`skip_home_root`) — a dotfiles repo's `.git` lives right there.
+  Parsing is capped at `max_entries` (300k by default): a runaway tags
+  file truncates with a notice instead of eating the editor.
+- **Finds the tags file, not just its own**: the configured one; else a
+  `tags` already sitting in the project root (yours, made by hand —
+  generate regenerates *it*); else the first one above the buffer's own
+  file (a plain `ctags` run in a subdirectory writes `./tags` right
+  there). Only when nothing exists does `generate` create a new one — in
+  `stdpath('data')/gliter/tags/<hash>` by default, keeping untracked files
+  out of your repo (set `tags_file = 'tags'` for the classic in-project
+  file).
+- **Wires the built-ins to it**: every buffer gets its project's file
+  prepended to its buffer-local `tags` option, so `<C-]>`, `g<C-]>` and
+  `:tag` work with zero configuration, and projects stay out of each
+  other's way.
+- **A simpler interface** than `:tselect`'s horizontal affair:
+  `:GliterCtags list` (or `<Leader>]`) takes the word under the cursor,
+  and shows every match in one vertical split — name, kind, `file:line`,
+  signature — `<CR>` jumps, `q` closes. One match goes straight there.
+- **Quickfix support**: `:GliterCtags quickfix` (or `<Leader>[`) puts
+  every match in the quickfix list for `:cnext`-ing through; and
+  `:GliterCtags file` lists the symbols of the current file by line — a
+  poor man's document outline in the quickfix window.
+- **Regenerates on save** (debounced, `auto_generate`) — but only for
+  projects that already have a gliter tags file, so the first
+  `:GliterCtags generate` opts a project in.
+
+## Keys
+
+| Key | Action |
+|-----|--------|
+| `<Leader>]` | list the tags of the word under the cursor |
+| `<Leader>[` | the same matches, in the quickfix list |
+
+In the list: `<CR>` jumps to the tag under the cursor, `q` or `<Esc>`
+closes. All keys are rows in the `keys` table of `setup()`; set one to
+`false` to disable it. `<Leader>]` sits next to the built-in `<C-]>`
+(their `]` halves are homely).
+
+## Commands
+
+`:GliterCtags` takes a subcommand, with completion for the subcommands and
+for the tag names:
+
+    :GliterCtags generate        (re)generate the tags file, asynchronously
+                                 (a rootless buffer: tags for THAT FILE
+                                 only — see above)
+    :GliterCtags generate %      regenerate the tags of that ONE file only:
+                                 its old entries are dropped from the tags
+                                 file, its fresh ones spliced in, sorted
+                                 ('tagbsearch' demands it) — no tree re-scan
+    :GliterCtags list [pat]      the picker; pat defaults to <cword>
+    :GliterCtags quickfix [pat]  the matches in the quickfix list
+    :GliterCtags file            the current file's symbols, by line
+
+(`gen` and `qf` are accepted spellings; `:GliterCtags` alone is `list`.) The
+file argument of `generate` is expanded — `%` is the current buffer's file,
+`~` works, and completion offers file names.
+
+## Options
+
+    require('gliter.ctags').setup {
+      keys = {
+        list = '<Leader>]',     -- false disables the mapping
+        quickfix = '<Leader>[',
+        generate = false,       -- e.g. '<Leader>tg'; commands work without
+      },
+      bin = 'ctags',            -- the ctags executable
+      tags_file = nil,          -- nil = stdpath('data')/gliter/tags/<hash>;
+                                -- 'tags' = in the project root; or a path
+      root_markers = { '.git', '.hg', '.svn', 'Makefile', 'package.json',
+                       'go.mod', 'Cargo.toml', 'pyproject.toml', 'setup.py' },
+      excludes = { '.git', '.hg', '.svn', 'node_modules', 'target', 'dist',
+                   'build', '.cache', '.venv', 'venv', '__pycache__', '.npm',
+                   '.cargo', '.rustup', '.pyenv', '.mypy_cache',
+                   '.pytest_cache', '.tox' },
+      extra_args = {},          -- appended to the ctags command line
+      auto_generate = true,     -- regenerate (debounced) on :w
+      skip_home_root = true,    -- $HOME (a dotfiles .git) is no project:
+                                -- its files get single-file tags
+      max_entries = 300000,     -- entries parsed for list/quickfix; a
+                                -- runaway tags file truncates, not hangs
+      warn_mb = 50,             -- a tags file over this many MB warns
+                                -- that the root is too broad
+      quickfix = { open = true, height = 10 },
+    }
+
+or through gliter: `require('gliter').setup { ctags = true }`.
+
+## Stolen from Emacs
+
+Emacs has grown its tags from a TAGS file since the mid-eighties — `M-.`
+(`find-tag`) jumps to the definition, and the tags idea itself is older
+still: Ken Arnold wrote the original `ctags` for 3BSD around 1980, and
+every editor since has spoken some dialect of it. gliter.ctags is the
+`M-.` flow — type a name, see the candidates, land on one — over the
+built-in Vim machinery, with the quickfix list as the passenger seat.
+
+## Limits
+
+- `--extras=+q` (qualified tags) needs universal-ctags; with
+  exuberant-ctags the tags are unqualified and the signature field is
+  skipped — everything else works.
+- The picker and quickfix read the project's tags file — the discovered
+  one (root `tags`, above-the-file `tags`, or gliter's own); tags from
+  other files in `'tags'` still work through the built-in `<C-]>` and
+  `:tag`.
+
+Requires Neovim 0.10+ and a `ctags` binary in `$PATH`.

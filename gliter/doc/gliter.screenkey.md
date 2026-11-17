@@ -1,0 +1,57 @@
+# gliter.screenkey
+
+Shows the keys you press, as you press them: a small float above the
+cmdline, the newest key highlighted, the rest fading away a moment after
+the last press. For screencasts, demos and pair sessions — the audience
+sees the keys, not your fingers.
+
+```lua
+require('gliter').setup { screenkey = {} }
+-- or on its own:
+require('gliter.screenkey').setup {}
+```
+
+`:GliterScreenkey` toggles it. The module is opt-in like every gliter
+module, so naming it in `setup()` is the on switch.
+
+The key list comes from `vim.on_key` — the keys as they are typed,
+before any mapping eats them — and is only ever shown: nothing is
+intercepted, nothing is replayed. Keys are shown in key notation
+(`<C-n>`, `<Leader>`, `gg`), mouse and wheel events stay out (hover
+noise), and a long burst (a paste) collapses instead of flooding the
+display.
+
+## Options
+
+```lua
+require('gliter.screenkey').setup {
+  timeout = 2000,   -- ms of quiet before the display clears
+  max_keys = 10,    -- how many keys stay on screen
+  border = 'none',
+  row = nil,        -- 0-based screen row; nil = just above the cmdline
+  col = nil,        -- 0-based screen column; nil = centered
+}
+```
+
+## Highlights
+
+| Group | Default | Used for |
+|-------|---------|----------|
+| `GliterScreenkey` | `Comment` | the keys already pressed |
+| `GliterScreenkeyNewest` | `SpecialKey` | the key pressed last |
+
+## Stolen from
+
+An Emacs idea with an X11 name. Emacs has shown your keys since the
+beginning — `echo-keystrokes`, the built-in variable that echoes an
+unfinished key sequence after a pause, and `view-lossage` (`C-h l`),
+which shows the last keystrokes you typed, both built-ins from the
+1980s — and [showkey.el](https://www.emacswiki.org/emacs/ShowKey)
+(Drew Adams, 2015) made the showing live:
+`showkey-tooltip-mode` and `showkey-log-mode`, the keys you use as
+you use them. [screenkey.nvim](https://github.com/NStefan002/screenkey.nvim)
+(2024) moved the idea into a Neovim float, under the name of the X11
+`screenkey` tool that drew keystrokes over the screen for recordings.
+gliter.screenkey is the light version: one float, two colors, a timer.
+
+Requires Neovim 0.9+.

@@ -1,0 +1,237 @@
+# gliter.multicursor
+
+Keys for the built-in multicursors (Neovim 0.13+). `setup()` maps a
+named `keys` table — every name to its key, any name to `false` to
+unmap it; the README's default setup and the table below hold the
+whole layout:
+
+```lua
+require("gliter").setup {
+  multicursor = {
+    keys = {
+      insert = "<M-i>",     -- any name: a new key, or false to unmap it
+      below  = false,       -- the names you leave out keep their defaults
+    },
+    extra_keys = {         -- raw rows on top, vim.keymap.set() order:
+      { "n", "<M-i>f",     -- flash.nvim: jump, then a cursor there.
+                          -- A row like this makes <M-i> a prefix of
+                          -- your own — and hands it back the
+                          -- 'timeoutlen' beat, so use it sparingly
+        function()
+          require("flash").jump()
+          vim.api.nvim_feedkeys("Q", "n", false) -- Q adds a cursor at the cursor position
+        end },
+      { "n", "<Tab>",      -- <Tab>: while a search is on, clear its
+        function()         -- highlighting; otherwise clear all the
+          if vim.v.hlsearch == 1 then     -- multicursors
+            vim.cmd("nohlsearch | redraw!")
+          else
+            vim.api.nvim_buf_clear_namespace(
+              0, vim.api.nvim_create_namespace("nvim.multicursor"), 0, -1)
+          end
+        end,
+        { noremap = true, desc = "Clear search highlighting / all multicursors" } },
+    },
+  },
+}
+```
+
+## Where it comes from
+
+The module started from [jceb](https://github.com/jceb)'s
+[multicursor-mappings.nvim](https://github.com/jceb/multicursor-mappings.nvim)
+(2026): the helpers behind the keys are his (the search-based ones
+unchanged, the place-and-step ones built on his
+follow-off/place/move/follow-on recipe), and the default keys started
+from his bindings. `<M-BS>` is not among them — it belongs to
+[gliter.treesitterRE](gliter.treesitterRE.md) here (see the end of this
+page). The multicursor *idea* itself did not come from jceb, though: it
+originated in Emacs.
+
+[multiple-cursors](https://github.com/magnars/multiple-cursors.el) is the
+Emacs package that made "select this word everywhere and edit them all at
+once" a thing — and it did so in 2012, fourteen years before Neovim 0.13
+shipped the cursors themselves: `C->` marks the next occurrence like this,
+`C-c C-<` marks them all, and every edit lands at every cursor. It also
+has `mc/edit-lines`: a cursor on every line of the region — which is
+exactly what Visual `<M-i>` below does, the built-in's own
+`{Visual}Q`. If you have used multiple-cursors, your hands already
+know everything on this page.
+
+## Defaults
+
+The defaults (the helpers behind them drive the built-in commands through
+`nvim_feedkeys()`). All keys are global; buffer-local maps — netrw's own
+keys inside netrw buffers, for instance — always win over them:
+
+| name | key | mode | action |
+| ---- | --- | ---- | ------ |
+| `clear` | `<Esc>` | n | clear all multicursors |
+| `follow` | `<C-=>` | n | `q=` — toggle `'follow'` |
+| `insert` | `<M-i>` | n | a cursor at the cursor position — the built-in's `Q` under the hood (`1<M-i>` adds, `2<M-i>` removes, counts pass through) |
+| `insert` | `<M-i>` | x | **a cursor on every line of the selection**, at the cursor column (the built-in's `{Visual}Q`) |
+| `below` | `<Leader>cj` | n | **place a cursor and move down** — `3<Leader>cj` leaves cursors on three lines, you on the third |
+| `above` | `<Leader>ck` | n | place a cursor and move up (`3<Leader>ck`, the same upward) |
+| `skip_next` | `<C-s>` | n | **skip** — no cursor at the match under the cursor, move to the next match |
+| `skip_prev` | `<C-m>` | n | skip backwards — back to the previous match, no cursor placed; in quickfix/location windows `<CR>` keeps its builtin jump |
+| `remove_prev` | `<C-b>` | n | remove the previous cursor [up] — took a match you did not want? this un-takes it |
+| `remove_next` | `<C-f>` | n | remove the next cursor [down] |
+| `all` | `<M-a>` | n, x | cursor at every occurrence of word / selection |
+| `next` | `<C-n>` | n, x | add cursor at next / previous occurrence |
+| `prev` | `<C-p>` | n, x | |
+| `next_reset` | `<Leader>cn` | n, x | reset search pattern, then next / previous occurrence |
+| `prev_reset` | `<Leader>cp` | n, x | |
+
+### Placing cursors: `<M-i>`, `<Leader>cj`, `<Leader>ck`
+
+`<M-i>` in Normal mode places a cursor at the cursor position — the
+built-in's `Q`, so a count still forces it (`1<M-i>` adds, `2<M-i>`
+removes). In Visual mode it is the built-in's `{Visual}Q` — a cursor on
+every line of the selection, at the cursor column. `V3k<M-i>` on a block of
+four lines and every `I`/`A`/edit lands four times: magnars'
+`mc/edit-lines`.
+
+- **`<Leader>cj`** places a cursor and moves down; **`<Leader>ck`** places
+  one and moves up. A count does the placing for you and ends with
+  you ON the last cursor: `3<Leader>cj` is the old `n:cmd` — cursors
+  on three lines, then just edit (`A;`, `<Esc>`, done — the primary
+  cursor edits too, wherever it stands, so ending on the third is
+  what keeps it three lines, not four).
+- The columns ride j/k: a short line clamps the column, a longer one
+  brings it back — plain Vim motion behavior, nothing new to learn.
+- They live under `<Leader>c` next to the reset keys on purpose:
+  `<M-i>` stays a single, instant key (no `timeoutlen` beat while Vim
+  waits for a second one), and the sequence survives every terminal —
+  Alt-key escapes travel badly through some of them. (A raw
+  `extra_keys` row that starts with `<M-i>`, like the flash jump at the
+  top of this page, does bring the beat back.)
+
+The walk under `<C-n>`/`<C-p>` is the same recipe with a search step —
+'follow' off, `Q`, `n`/`N`, 'follow' back on. **`<C-s>`** is the skip:
+the match under the cursor gets no cursor, and the next one comes up —
+`<C-n>` takes, `<C-s>` declines and steps on, **`<C-m>`** steps back to
+the one you declined (skip it back, and a later `<C-n>` takes it after
+all). Took one you should not have? **`<C-b>`** jumps back to the
+previous cursor and takes it off again — skip by un-taking — and
+**`<C-f>`** does the same to the next one. When the next matches are far
+away, just move down a bunch of lines and `<C-n>` continues from there —
+the pattern stays set.
+
+`<C-m>` *is* `<CR>` (both are 0x0D) — the mapping therefore replaces Enter
+wherever no buffer-local `<CR>` exists. Quickfix and location-list windows
+jump through a builtin Enter, and a plain global `<C-m>` mapping is exactly
+how "Enter does nothing in the quickfix window" happens; in those windows
+the builtin jump runs instead.
+
+`<M-BS>` belongs to [gliter.treesitterRE](gliter.treesitterRE.md) here
+(walk the selection ladder back down), so it is not among the defaults;
+`<Esc>` clears all cursors, and the built-in `<C-l>` still works. jceb's
+binding for it — *clear all cursors* — is one row away if you want it
+back:
+
+```lua
+extra_keys = {
+  { "n", "<M-BS>",
+    function()
+      vim.api.nvim_buf_clear_namespace(
+        0, vim.api.nvim_create_namespace("nvim.multicursor"), 0, -1)
+    end,
+    { noremap = true, desc = "Clear all multicursors" } },
+}
+```
+
+With lazy.nvim the examples at the top belong in the plugin's
+`config`/`opts` function. gliter only sets up the modules you name in
+`setup()`, so name this one: without a plugin manager, call
+`require("gliter").setup { multicursor = {} }` — or set `vim.g.gliter =
+{ multicursor = {} }` before startup and let `plugin/gliter.lua` handle
+it, or require the module and set it up directly. After setup, `M.keys`
+holds the rows that were applied — plain `{ mode, key, rhs, opts }`
+tuples, `:verbose nmap`'s view of the module.
+
+## Before and after
+
+Here are five edits — each one used to be a regex, and with the cursors
+(and `zq`, the built-in "a cursor at every match of the search pattern,
+wrapping"; in Visual mode limited to the selection) they are just keys.
+The search itself stays a full Vim regex — `\_s+`, `\%V`, offsets, all of
+it — the cursors only replace the `:g//norm!` plumbing on top of it.
+
+**Changing the brackets to braces.** Used to be a search with an
+offset, then a `:g//` normal-command run:
+
+    /\%Vmessages\=.\{-}\(\_s\+\)\={/e
+    :g//norm!ncs{[
+
+Now: the search (any regex you like — `\_s+`, `\%V`, all of it, the
+cursors take whatever it matches), `zqn` for a cursor at every
+match, then — with `'follow'` on — one `f{` steps every cursor to
+its brace, and the change lands once:
+
+    /messages<CR>
+    zqn
+    <C-=>f{        every cursor to its {
+    cs{[           (vim-sandwich — whatever edit you use replays at
+                   every cursor)
+
+`{Visual}zqn` keeps the cursors inside the selection, the old
+`\%V`'s job. And every cursor is on screen before you commit.
+
+**Quoting every character of a selection.** Used to be:
+
+    :'<,'>s/\p/"&",/g
+
+Now select, `zq/` with `\p` — a cursor on every printable character
+of the selection — then insert before each character, step every
+cursor onto its character, and append after it:
+
+    vll             (any selection)
+    zq/\p<CR>
+    i"<Esc>
+    <C-=>l          every cursor onto its character
+    a",<Esc>
+
+**Changing the outer-level HTML tags.** Used to be one line of regex
+you would rather not read twice:
+
+    :%s@\(<\h\w*\(.\{-}>\)\).*<\&\1@<div\2@g
+
+Now `<C-n>` walks the tags — cursor on the first one, then:
+
+    <C-n><C-n>…      a cursor at each tag you want
+    <C-s>            skip the one under you: no cursor, next match
+    <C-b>            took one you didn't? it un-takes the last one
+    12j…<C-n>        a bad stretch? go down and continue from there
+    cwdiv<Esc>
+
+It's visual — everything you are about to change is on screen — and
+there is no regex at all.
+
+**Renaming everything but one dotted name.** `:s/prefill(?!\.)/input/g`
+needs a lookahead; the cursors have it for free. Search, `zqn`, take
+the cursor off the one exception (`]C`/`[C` walk the cursors, `Q`
+drops the one you are on), rename:
+
+    /prefill<CR>
+    zqn
+    ]C…Q             (off `prefill.normal`)
+    cwinput<Esc>
+
+**The old `n:cmd`.** A count and `:` — `3:norm A;`, say. Now
+`3<Leader>cj` puts cursors on three lines — and you on the third — and
+you edit normally:
+
+    3<Leader>cj
+    A;<Esc>
+
+## `q=` and `'follow'`
+
+`q=` does nothing except toggle the buffer-local `'follow'` option
+(`:h 'follow'`): `1q=` sets it, `2q=` clears it, so the option could be set
+directly via `vim.bo.follow`; the module feeds the keys as the original did.
+`Q` has no option behind it — it places/toggles a cursor at the cursor
+position and also disables `'follow'`. Edits cascade to every cursor
+either way; `'follow'` only decides whether motions (w, n, fx …) replay
+at every cursor too — which is why the helpers switch it off for their
+steps (the j/k of `<Leader>cj`/`<Leader>ck`, the search of the walk and
+of the skips) and back on at the end.
