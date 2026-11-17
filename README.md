@@ -854,3 +854,5 @@ gliter stands on the shoulders of:
   pressed keys in a float, like the X11 screenkey tool before it
 * [alex-popov-tech/store.nvim](https://github.com/alex-popov-tech/store.nvim)
   — the package browser to use now that gliter.pack is deprecated
+
+Licensed under the [MIT License](LICENSE).
