@@ -1,9 +1,31 @@
 # gliter
 
-A suite of small plugins for Neovim under one namespace and one
-runtime path — every module is `gliter.<name>`. gliter is a home for
-modules that improve what Neovim already ships: no framework, no
-dependencies (except where noted), every module standing on its own.
+**Emacs ideas, Neovim-native.** A suite of opt-in Neovim plugins that
+improve what Neovim already ships — no framework, no dependencies,
+every module stands alone.
+
+[![Neovim 0.9+](https://img.shields.io/badge/Neovim-0.9%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/you/gliter?style=social)](https://github.com/you/gliter/stargazers)
+
+<!-- TODO: 1200x600 demo GIF — 4 panels: netrw marks, multicursor, which-key popup, make buffer -->
+
+**17 modules. One namespace. One runtime path.** Opt in to what you
+want; nothing loads without a `setup()` call. [Jump to the modules ↓](#modules)
+
+---
+
+### Why gliter?
+
+- **No framework, no dependencies.** Every module is a plain
+  `setup(opts)` returning table.
+- **Opt-in by design.** `setup()` touches only the modules you name.
+- **Improves, never replaces.** A module earns its seat only by making
+  something Neovim already ships nicer to use.
+- **One namespace, one runtime path.** `gliter.<name>`, every module
+  standing on its own.
+- **Stolen from Emacs — with receipts.** Every module cites the Emacs
+  package it ported (see [Stolen from Emacs](#stolen-from-emacs)).
 
 The interfaces are borrowed from Emacs — on purpose, in broad
 daylight; the "Stolen from Emacs" section below is the itemized
