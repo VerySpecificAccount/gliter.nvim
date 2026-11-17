@@ -1,30 +1,58 @@
 name: vimdoc
+
 on:
   push:
-    paths: ['doc/*.md']
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'doc/gliter.*.md'
+      - '.github/workflows/vimdoc.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5   # Node 24 (fixes the deprecation warning)
 
-      - name: Convert each module .md to .txt
+      - name: Install panvimdoc
+        run: pip install panvimdoc
+
+      - name: Convert main README.md → doc/gliter.txt
         run: |
-          pip install panvimdoc
+          panvimdoc \
+            --input README.md \
+            --output doc/gliter.txt \
+            --vimdoc-name gliter \
+            --project-name gliter \
+            --vimdoc-title gliter
+
+      - name: Convert each module doc
+        run: |
           for md in doc/gliter.*.md; do
+            # skip the README index (doc/README.md doesn't match, but be safe)
+            case "$md" in
+              doc/gliter.txt) continue ;;
+            esac
             base=$(basename "$md" .md)
             panvimdoc \
               --input "$md" \
               --output "doc/${base}.txt" \
               --vimdoc-name "$base" \
-              --project-name gliter.nvim \
+              --project-name gliter \
               --vimdoc-title "$base"
           done
 
+      - name: Generate doc/tags
+        run: nvim --headless -c 'helptags doc/' -c 'qa!'
+
       - name: Commit generated vimdoc
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7   # Node 24
         with:
           commit_message: "Auto-generate vimdoc from markdown"
           file_pattern: 'doc/*.txt doc/tags'
+          branch: ${{ github.head_ref || github.ref_name }}
