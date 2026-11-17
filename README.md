@@ -560,7 +560,7 @@ early in init.lua — and `plugin/gliter.lua` hands it to `setup()` for you.
 
 ```lua
 {
-  'VerySpecificAccount/gliter',
+  'VerySpecificAccount/gliter.nvim',
   opts = {
     undotree = { panel_height = 6 },
     netrw = true,
@@ -580,7 +580,7 @@ vim.pack.add({ 'https://github.com/lumen-oss/lz.n' })
 
 vim.pack.add({
   {
-    src = 'https://github.com/VerySpecificAccount/gliter',
+    src = 'https://github.com/VerySpecificAccount/gliter.nvim',
     data = {
       event = 'BufReadPre',   -- or keys = ..., cmd = ..., ft = ...
       after = function()
