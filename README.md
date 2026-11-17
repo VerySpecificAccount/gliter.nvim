@@ -6,7 +6,7 @@ every module stands alone.
 
 [![Neovim 0.9+](https://img.shields.io/badge/Neovim-0.9%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/VerySpecificAccount/gliter?style=social)](https://github.com/you/gliter/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/VerySpecificAccount/gliter?style=social)](https://github.com/VerySpecificAccount/gliter/stargazers)
 
 <!-- TODO: 1200x600 demo GIF — 4 panels: netrw marks, multicursor, which-key popup, make buffer -->
 
