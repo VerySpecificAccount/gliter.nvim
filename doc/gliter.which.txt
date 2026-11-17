@@ -1,0 +1,91 @@
+# gliter.which
+
+A light which-key: press a prefix — a key that only makes sense with what
+follows, `<Leader>` by default, plus `g`, `z`, `[`, `]` and
+`<LocalLeader>` — and the moment you pause, a popup lists every mapping
+that continues it, straight out of `:map`: the key, and the description
+its mapping carries. Pick one and it runs. Keep typing fast and you never
+see the popup at all.
+
+```lua
+require('gliter').setup { which = {} }
+-- or on its own:
+require('gliter.which').setup {}
+```
+
+## How it works
+
+The module maps the prefix itself, in Normal and Visual mode, and only
+where nothing else has mapped it. Vim already waits `timeoutlen` after a
+prefix for the keys that might follow; that wait is the whole trigger:
+
+- **fast typing** — `<Leader>cj` inside `timeoutlen` resolves to the
+  `cj` mapping directly, the way it always did. gliter.which never runs.
+- **a pause** — the timeout expires, the prefix mapping fires, and
+  `getcharstr(0)` reports that no key is waiting: the popup comes up
+  with the mappings that continue the prefix. The next key either
+  completes one (it runs, count and all) or extends the sequence (the
+  popup follows you down, level by level — `<Leader>` then `c` shows
+  `cj`, `ck`, ...).
+
+What a picked key does is exactly what pressing it without gliter.which
+would have done:
+
+- the sequence completes to a mapping → its keys are fed back as typed
+  input, so callbacks, `<expr>` mappings, counts (`3<Leader>cj`) and
+  buffer-local maps all run as themselves;
+- it dead-ends (no mapping continues it) → the keys are fed unremapped,
+  which is precisely what Vim itself does with a pending sequence that
+  times out: a builtin (`gJ`, `zn`, `]C`, ...) runs, or the keys do
+  their plain thing;
+- `<BS>` steps a level back up, `<Esc>` closes.
+
+Because the popup is a `:map` listing, it is always true to your setup:
+gliter's own keys, your keys, your other plugins' keys, buffer-local keys
+(those win over global ones, like in Vim) — whatever is mapped right now.
+Keys with no description show their `rhs` instead.
+
+## Options
+
+```lua
+require('gliter.which').setup {
+  prefixes = { '<Leader>', '<LocalLeader>', 'g', 'z', '[', ']' },
+                        -- bound in every mode below where the prefix is
+                        -- not already mapped; add '<C-w>' if you want the
+                        -- window commands in the popup too (they keep
+                        -- working either way — see below)
+  modes = { 'n', 'x' },
+  border = 'rounded',
+  max_height = 18,      -- rows per column before a second column
+}
+```
+
+A prefix that is already mapped — by you or another plugin — is left
+alone entirely. Builtin keys are never shadowed: binding `g` only means
+`g` *alone* (after the timeout) shows the popup instead of doing
+nothing; `gg`, `gJ`, `zn` and friends run through the unremapped
+pass-through, and anything typed within `timeoutlen` never touches the
+module at all.
+
+## Highlights
+
+| Group | Default | Used for |
+|-------|---------|----------|
+| `GliterWhichKey` | `SpecialKey` | the keys |
+| `GliterWhichDesc` | `Comment` | their descriptions |
+| `GliterWhichHeader` | `Title` | the popup's header (the prefix so far) |
+
+## Stolen from
+
+A three-step chain, each step a rewrite of the last: [guide-key](https://github.com/kai2nenobu/guide-key)
+(Tsunenobu Kai, 2012) popped up the keys that follow a prefix in
+Emacs; [which-key.el](https://github.com/justbur/emacs-which-key)
+(Justin Burkett, 2015) — its own README says it "started as a rewrite
+of guide-key-mode" — grew the groups, the paging and the replacement
+rules, and was taken into Emacs 30's core (the standalone repo
+archived June 2024); and
+[which-key.nvim](https://github.com/folke/which-key.nvim) (2021)
+brought it to Neovim. gliter.which is the light version — the popup
+and nothing more. **For the rest, use which-key.nvim.**
+
+Requires Neovim 0.10+.
