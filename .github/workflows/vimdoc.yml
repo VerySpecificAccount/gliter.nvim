@@ -1,0 +1,30 @@
+name: vimdoc
+on:
+  push:
+    paths: ['doc/*.md']
+  workflow_dispatch:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Convert each module .md to .txt
+        run: |
+          pip install panvimdoc
+          for md in doc/gliter.*.md; do
+            base=$(basename "$md" .md)
+            panvimdoc \
+              --input "$md" \
+              --output "doc/${base}.txt" \
+              --vimdoc-name "$base" \
+              --project-name gliter.nvim \
+              --vimdoc-title "$base"
+          done
+
+      - name: Commit generated vimdoc
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-generate vimdoc from markdown"
+          file_pattern: 'doc/*.txt doc/tags'
