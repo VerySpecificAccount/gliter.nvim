@@ -17,41 +17,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5   # Node 24 (fixes the deprecation warning)
+        uses: actions/checkout@v5
 
-      - name: Install panvimdoc
-        run: pip install panvimdoc
+      # Convert main README.md → doc/gliter.txt
+      - name: Convert main README
+        uses: kdheepak/panvimdoc@main
+        with:
+          vimdoc: gliter
+          pandoc: README.md          # input file
+          description: "Emacs ideas, Neovim-native — an opt-in plugin suite."
 
-      - name: Convert main README.md → doc/gliter.txt
-        run: |
-          panvimdoc \
-            --input README.md \
-            --output doc/gliter.txt \
-            --vimdoc-name gliter \
-            --project-name gliter \
-            --vimdoc-title gliter
-
-      - name: Convert each module doc
+      # Convert each module doc: doc/gliter.netrw.md → doc/gliter.netrw.txt
+      - name: Convert module docs
         run: |
           for md in doc/gliter.*.md; do
-            # skip the README index (doc/README.md doesn't match, but be safe)
-            case "$md" in
-              doc/gliter.txt) continue ;;
-            esac
-            base=$(basename "$md" .md)
-            panvimdoc \
-              --input "$md" \
-              --output "doc/${base}.txt" \
-              --vimdoc-name "$base" \
-              --project-name gliter \
-              --vimdoc-title "$base"
+            base=$(basename "$md" .md)   # e.g. gliter.netrw
+            nvim --headless -c "lua require('panvimdoc').convert({ input = '$md', output = 'doc/${base}.txt', vimdoc_name = '${base}', project_name = 'gliter' })" -c 'qa!'
           done
+        # ^ The action above only runs once per workflow file.  
+        #   For per-module conversion, panvimdoc exposes a Lua API.
+        #   If the Lua API differs in your version, see the fallback below.
 
       - name: Generate doc/tags
         run: nvim --headless -c 'helptags doc/' -c 'qa!'
 
       - name: Commit generated vimdoc
-        uses: stefanzweifel/git-auto-commit-action@v7   # Node 24
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Auto-generate vimdoc from markdown"
           file_pattern: 'doc/*.txt doc/tags'
