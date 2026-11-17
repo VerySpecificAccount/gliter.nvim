@@ -592,6 +592,18 @@ ever reaches the modules you name in it, so a module configured directly
 just stays as you left it (don't also name it in `require('gliter').setup`
 unless you want its options applied there).
 
+## Adding a module
+
+Drop a new `lua/gliter/<name>.lua` that returns a table with `setup(opts)`,
+then add one row to the `modules` table in `lua/gliter/init.lua`:
+
+```lua
+{ '<name>', 'gliter.<name>' },
+```
+
+From then on `require('gliter').setup { ['<name>'] = { ... } }` sets it up
+(or `{ <name> = { ... } }` when the name is a valid Lua identifier).
+
 ## Stolen from Emacs
 
 gliter's interfaces are stolen from
@@ -738,18 +750,6 @@ Vim or Neovim thing it inspired, usually by a decade or more:
 The one Emacs package gliter cannot have yet is Org-mode: gliter only
 improves what Neovim already ships, so `gliter.orgmode` will be added as
 soon as Org-mode is implemented in Neovim — any decade now.
-
-## Adding a module
-
-Drop a new `lua/gliter/<name>.lua` that returns a table with `setup(opts)`,
-then add one row to the `modules` table in `lua/gliter/init.lua`:
-
-```lua
-{ '<name>', 'gliter.<name>' },
-```
-
-From then on `require('gliter').setup { ['<name>'] = { ... } }` sets it up
-(or `{ <name> = { ... } }` when the name is a valid Lua identifier).
 
 ## Prior art
 
