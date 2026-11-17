@@ -4,6 +4,7 @@
 improve what Neovim already ships — no framework, no dependencies,
 every module stands alone.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Neovim 0.9+](https://img.shields.io/badge/Neovim-0.9%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/VerySpecificAccount/gliter.nvim?style=social)](https://github.com/VerySpecificAccount/gliter.nvim/stargazers)
