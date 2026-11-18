@@ -7,10 +7,10 @@ Table of Contents                              *gliter.nvim-table-of-contents*
 1. gliter                                                 |gliter.nvim-gliter|
   - Table of contents                   |gliter.nvim-gliter-table-of-contents|
   - Why gliter?                               |gliter.nvim-gliter-why-gliter?|
+  - The default setup                   |gliter.nvim-gliter-the-default-setup|
   - Installation                             |gliter.nvim-gliter-installation|
   - Modules                                       |gliter.nvim-gliter-modules|
   - Not everything needs a module|gliter.nvim-gliter-not-everything-needs-a-module|
-  - The default setup                   |gliter.nvim-gliter-the-default-setup|
   - Adding a module                       |gliter.nvim-gliter-adding-a-module|
   - Stolen from Emacs                   |gliter.nvim-gliter-stolen-from-emacs|
   - Prior art                                   |gliter.nvim-gliter-prior-art|
@@ -52,10 +52,10 @@ nothing loads without a `setup()` call. Jump to the modules ↓
 TABLE OF CONTENTS                       *gliter.nvim-gliter-table-of-contents*
 
 - |gliter.nvim-gliter-why-gliter?|
+- |gliter.nvim-gliter-the-default-setup|
 - |gliter.nvim-gliter-installation|
 - |gliter.nvim-gliter-modules|
 - |gliter.nvim-gliter-not-everything-needs-a-module|
-- |gliter.nvim-gliter-the-default-setup|
 - |gliter.nvim-gliter-adding-a-module|
 - |gliter.nvim-gliter-stolen-from-emacs|
 - |gliter.nvim-gliter-prior-art|
@@ -81,252 +81,6 @@ nicer to use, and replace none of it.
 Every module is opt-in. `setup()` touches only the modules you name in its
 options; a module you leave out is never loaded, and nothing at all happens
 without a `setup()` call.
-
-
-INSTALLATION                                 *gliter.nvim-gliter-installation*
-
-
-WITH LAZY.NVIM ~
-
->lua
-    {
-      'VerySpecificAccount/gliter.nvim',
-      opts = {
-        undotree = { panel_height = 6 },
-        netrw = true,
-      },
-    }
-<
-
-
-WITH LZ.N AND VIM.PACK (NEOVIM 0.12+) ~
-
-Install with the built-in |`vim.pack`| and lazy-load through lz.n
-<https://github.com/lumen-oss/lz.n>’s handlers — `data` carries the lz.n
-spec (`event`, `keys`, `cmd`, `ft`, …) for the plugin:
-
->lua
-    vim.pack.add({
-     "https://github.com/lumen-oss/lz.n" ,
-     "https://github.com/VerySpecificAccount/gliter.nvim"
-    })
-
-    require("lz.n").load({
-        {
-        "gliter.nvim",
-          event = 'BufReadPre',   -- or keys = ..., cmd = ..., ft = ...
-          after = function()
-            require('gliter').setup {
-              netrw = { star_kind = 'copy' },
-              -- treesitterRE = {}, -- wouldn't be included
-            }
-          end,
-        },
-<
-
-
-WITHOUT A PLUGIN MANAGER ~
-
-Clone the repository anywhere on your `runtimepath` (e.g.
-`~/.local/share/nvim/site/pack/gliter/start/gliter`) and call
-`require('gliter').setup { ... }` from your init.lua, which runs before the
-plugin’s own files — or set `vim.g.gliter` before startup and let
-`plugin/gliter.lua` do it.
-
-
-ONE MODULE ON ITS OWN ~
-
-Every module can be set up alone, straight from your init.lua:
-
->lua
-    require('gliter.netrw').setup { conflict = 'skip' }
-<
-
-gliter will not touch it afterwards — opt-in modules mean `setup()` only ever
-reaches the modules you name in it, so a module configured directly just stays
-as you left it (don’t also name it in `require('gliter').setup` unless you
-want its options applied there).
-
-
-MODULES                                           *gliter.nvim-gliter-modules*
-
-Every module has a section of its own below — and full documentation in
-`doc/gliter.<name>.md`.
-
-  ---------------------------------------------------------------------------------------------
-  Module                Needs         Adds                       Stolen from
-  --------------------- ------------- -------------------------- ------------------------------
-  gliter.netrw          Neovim 0.12+  marks, bookmarks, one-key  dired (1986) + wdired
-                                      commands, regexp marking
-                                      with a live highlight and
-                                      in-place editing for the
-                                      built-in netrw
-
-  gliter.undotree       Neovim 0.12+  a <Leader>u toggle, colors undo-tree (2009)
-                                      and a bottom diff window
-                                      for the built-in :Undotree
-
-  gliter.multicursor    Neovim 0.13+  keys for the built-in      multiple-cursors (2012)
-                                      multicursors: <M-i> puts
-                                      one on every line of the
-                                      selection,
-                                      <Leader>cj/<Leader>ck
-                                      place one and step, <M-a>
-                                      on every occurrence,
-                                      <C-n>/<C-p> walk them,
-                                      <C-s>/<C-m> skip,
-                                      <C-b>/<C-f> remove one
-
-  gliter.treesitterRE   Neovim 0.9+   expand-region: one key     expand-region (2011)
-                                      grows the selection up a
-                                      semantic ladder (parser
-                                      optional)
-
-  gliter.ctags          Neovim 0.10+  the built-in ctags support etags (mid-1980s)
-                                      with better defaults, a
-                                      one-command interface and
-                                      quickfix
-
-  gliter.make           Neovim 0.9+   per-filetype 'makeprg' and compile (mid-1980s)
-                                      the *compilation* buffer:
-                                      streaming,
-                                      terminal-colored output
-                                      whose errors fill the
-                                      quickfix — plus a runner
-                                      (run the file, the
-                                      selection, a grep, shells)
-                                      through one settable
-                                      output function
-
-  gliter.repl           Neovim 0.9+   a REPL per filetype with   SLIME (2003)
-                                      Spacemacs’ send keys
-                                      (<Leader>ls/lS/ll/lb) and
-                                      headless evaluation
-                                      (<Leader>le)
-
-  gliter.textobj        Neovim 0.9+   targets.vim’s quote and    targets.vim (2014)
-                                      separator objects: vi"
-                                      exactly where Vim’s own
-                                      works, seeking where it
-                                      gives up — the next pair
-                                      after the cursor first
-                                      (the gap between two
-                                      strings takes the next
-                                      string, like in"), then
-                                      back to the pair before
-                                      it, then the nearest one
-                                      by distance. in"/il", i,
-                                      between the commas
-
-  gliter.sessions       Neovim 0.9+   :mksession with a memory:  desktop.el (1990s)
-                                      <Leader>ss saves the
-                                      session into its project
-                                      and remembers it,
-                                      <Leader>sl lists every
-                                      known session in a float —
-                                      <CR> activates, d deletes,
-                                      saving again updates
-
-  gliter.readme         Neovim 0.9+   <Leader>rr opens (or       recentf (2002)
-                                      creates) the project’s
-                                      readme — the name is an
-                                      option — and <Leader>rl
-                                      lists every readme you
-                                      touched, most recent
-                                      first: <CR> opens,
-                                      <C-t>/<C-w>/<C-v> open it
-                                      in a tab or a split, d
-                                      forgets
-
-  gliter.justify        Neovim 0.9+   g= and :GliterJustify:     fill.el (1980s) + justify.vim
-                                      reflow the paragraph (or   (1998)
-                                      the selection, or a range)
-                                      to the width and justify
-                                      it — both margins flush,
-                                      the last line ragged
-
-  gliter.matchit        Neovim 0.9+   M (the key you gave %)     matchit.vim (1996)
-                                      jumps between the words
-                                      that bracket a block —
-                                      if/end,
-                                      function/endfunction,
-                                      <div>/</div> — nesting
-                                      counted; gM the other way;
-                                      plain % on everything else
-
-  gliter.tohtml         Neovim 0.10+  :GliterTohtml: the buffer  2html.vim (2001) + htmlize.el
-                                      (or the selection) out as  (1997) + troff (1973)
-                                      HTML with its syntax
-                                      colors, as Markdown, or as
-                                      PDF typeset by groff
-
-  gliter.w3             Neovim 0.10+  the web in a buffer:       W3 (1993) → eww (2013) → viww
-                                      :GliterW3 <url> — curl     (2026)
-                                      fetches and pandoc renders
-                                      the page (lynx without
-                                      pandoc, w3m with the links
-                                      taken out of the html, wls
-                                      lists the site); links
-                                      followable from the
-                                      keyboard while a spinner
-                                      covers the load, ]l/[l
-                                      walk them, gl quickfixes
-                                      them, H goes back, R
-                                      reloads, keywords search
-                                      DuckDuckGo
-
-  gliter.cmd            Neovim 0.10+  readline’s keys on the     readline (1988) + fish (2005)
-                                      built-in command line —
-                                      C-a/C-b/C-f/C-d/C-k/C-t,
-                                      M-b/M-f, M-BS/M-d, each
-                                      editing the line the way
-                                      setcmdline() allows;
-                                      Tab/S-Tab untouched, the
-                                      wildmenu keeps its own
-                                      keys (C-e reverts it,
-                                      Right walks it, the edit
-                                      keys sleep while it is up)
-                                      — and fish’s ghost: the
-                                      history’s continuation
-                                      dimmed after the line (:w
-                                      with file after it — Enter
-                                      runs :w alone, C-n or
-                                      C-f/C-e/Right at the end
-                                      takes the echo, C-p cycles
-                                      the echoes, one older at a
-                                      time); input()’s prompts —
-                                      netrw’s %, w3’s address —
-                                      get the same ride, their
-                                      answers in the @ history
-
-  gliter.which          Neovim 0.10+  a light which-key: pause   guide-key (2012) →
-                                      after a prefix (<Leader>,  which-key.el (2015) →
-                                      g, z, …) and a popup lists which-key.nvim (2021)
-                                      the mappings that continue
-                                      it, straight out of :map
-
-  gliter.screenkey      Neovim 0.9+   shows the keys you press   echo-keystrokes / view-lossage
-                                      as you press them — a      (1980s) → showkey.el (2015) →
-                                      float for screencasts and  screenkey.nvim (2024)
-                                      demos
-
-  ~~gliter.pack~~       Neovim 0.10+  deprecated — use           package.el + MELPA (2007/2012)
-                                      store.nvim instead
-  ---------------------------------------------------------------------------------------------
-
-NOT EVERYTHING NEEDS A MODULE*gliter.nvim-gliter-not-everything-needs-a-module*
-
-Commenting, for instance, is built into Neovim 0.10+ — `gc` toggles comments
-as an operator, `gcc` the line — so gliter ships no `gliter.comment`. A
-prefix key is all that is missing, and that is one line, not a module:
-
->lua
-    vim.keymap.set("", "<leader>c", "gc", { remap = true, desc = "Toggle comment" })
-<
-
-The suite’s rule is exactly this: a module has to make something Neovim
-already ships nicer to use. When Neovim already ships the whole feature, the
-README is where it goes, not the runtime path.
 
 
 THE DEFAULT SETUP                       *gliter.nvim-gliter-the-default-setup*
@@ -803,6 +557,252 @@ to `true` for plain defaults, or to `false` to keep it explicitly off. To
 configure without any Lua ordering concerns, stash the same table in a global
 before startup — `let g:gliter = {...}` in init.vim or `vim.g.gliter = {...}`
 early in init.lua — and `plugin/gliter.lua` hands it to `setup()` for you.
+
+
+INSTALLATION                                 *gliter.nvim-gliter-installation*
+
+
+WITH LAZY.NVIM ~
+
+>lua
+    {
+      'VerySpecificAccount/gliter.nvim',
+      opts = {
+        undotree = { panel_height = 6 },
+        netrw = true,
+      },
+    }
+<
+
+
+WITH LZ.N AND VIM.PACK (NEOVIM 0.12+) ~
+
+Install with the built-in |`vim.pack`| and lazy-load through lz.n
+<https://github.com/lumen-oss/lz.n>’s handlers — `data` carries the lz.n
+spec (`event`, `keys`, `cmd`, `ft`, …) for the plugin:
+
+>lua
+    vim.pack.add({
+     "https://github.com/lumen-oss/lz.n" ,
+     "https://github.com/VerySpecificAccount/gliter.nvim"
+    })
+
+    require("lz.n").load({
+        {
+        "gliter.nvim",
+          event = 'BufReadPre',   -- or keys = ..., cmd = ..., ft = ...
+          after = function()
+            require('gliter').setup {
+              netrw = { star_kind = 'copy' },
+              -- treesitterRE = {}, -- wouldn't be included
+            }
+          end,
+        },
+<
+
+
+WITHOUT A PLUGIN MANAGER ~
+
+Clone the repository anywhere on your `runtimepath` (e.g.
+`~/.local/share/nvim/site/pack/gliter/start/gliter`) and call
+`require('gliter').setup { ... }` from your init.lua, which runs before the
+plugin’s own files — or set `vim.g.gliter` before startup and let
+`plugin/gliter.lua` do it.
+
+
+ONE MODULE ON ITS OWN ~
+
+Every module can be set up alone, straight from your init.lua:
+
+>lua
+    require('gliter.netrw').setup { conflict = 'skip' }
+<
+
+gliter will not touch it afterwards — opt-in modules mean `setup()` only ever
+reaches the modules you name in it, so a module configured directly just stays
+as you left it (don’t also name it in `require('gliter').setup` unless you
+want its options applied there).
+
+
+MODULES                                           *gliter.nvim-gliter-modules*
+
+Every module has a section of its own below — and full documentation in
+`doc/gliter.<name>.md`.
+
+  ---------------------------------------------------------------------------------------------
+  Module                Needs         Adds                       Stolen from
+  --------------------- ------------- -------------------------- ------------------------------
+  gliter.netrw          Neovim 0.12+  marks, bookmarks, one-key  dired (1986) + wdired
+                                      commands, regexp marking
+                                      with a live highlight and
+                                      in-place editing for the
+                                      built-in netrw
+
+  gliter.undotree       Neovim 0.12+  a <Leader>u toggle, colors undo-tree (2009)
+                                      and a bottom diff window
+                                      for the built-in :Undotree
+
+  gliter.multicursor    Neovim 0.13+  keys for the built-in      multiple-cursors (2012)
+                                      multicursors: <M-i> puts
+                                      one on every line of the
+                                      selection,
+                                      <Leader>cj/<Leader>ck
+                                      place one and step, <M-a>
+                                      on every occurrence,
+                                      <C-n>/<C-p> walk them,
+                                      <C-s>/<C-m> skip,
+                                      <C-b>/<C-f> remove one
+
+  gliter.treesitterRE   Neovim 0.9+   expand-region: one key     expand-region (2011)
+                                      grows the selection up a
+                                      semantic ladder (parser
+                                      optional)
+
+  gliter.ctags          Neovim 0.10+  the built-in ctags support etags (mid-1980s)
+                                      with better defaults, a
+                                      one-command interface and
+                                      quickfix
+
+  gliter.make           Neovim 0.9+   per-filetype 'makeprg' and compile (mid-1980s)
+                                      the *compilation* buffer:
+                                      streaming,
+                                      terminal-colored output
+                                      whose errors fill the
+                                      quickfix — plus a runner
+                                      (run the file, the
+                                      selection, a grep, shells)
+                                      through one settable
+                                      output function
+
+  gliter.repl           Neovim 0.9+   a REPL per filetype with   SLIME (2003)
+                                      Spacemacs’ send keys
+                                      (<Leader>ls/lS/ll/lb) and
+                                      headless evaluation
+                                      (<Leader>le)
+
+  gliter.textobj        Neovim 0.9+   targets.vim’s quote and    targets.vim (2014)
+                                      separator objects: vi"
+                                      exactly where Vim’s own
+                                      works, seeking where it
+                                      gives up — the next pair
+                                      after the cursor first
+                                      (the gap between two
+                                      strings takes the next
+                                      string, like in"), then
+                                      back to the pair before
+                                      it, then the nearest one
+                                      by distance. in"/il", i,
+                                      between the commas
+
+  gliter.sessions       Neovim 0.9+   :mksession with a memory:  desktop.el (1990s)
+                                      <Leader>ss saves the
+                                      session into its project
+                                      and remembers it,
+                                      <Leader>sl lists every
+                                      known session in a float —
+                                      <CR> activates, d deletes,
+                                      saving again updates
+
+  gliter.readme         Neovim 0.9+   <Leader>rr opens (or       recentf (2002)
+                                      creates) the project’s
+                                      readme — the name is an
+                                      option — and <Leader>rl
+                                      lists every readme you
+                                      touched, most recent
+                                      first: <CR> opens,
+                                      <C-t>/<C-w>/<C-v> open it
+                                      in a tab or a split, d
+                                      forgets
+
+  gliter.justify        Neovim 0.9+   g= and :GliterJustify:     fill.el (1980s) + justify.vim
+                                      reflow the paragraph (or   (1998)
+                                      the selection, or a range)
+                                      to the width and justify
+                                      it — both margins flush,
+                                      the last line ragged
+
+  gliter.matchit        Neovim 0.9+   M (the key you gave %)     matchit.vim (1996)
+                                      jumps between the words
+                                      that bracket a block —
+                                      if/end,
+                                      function/endfunction,
+                                      <div>/</div> — nesting
+                                      counted; gM the other way;
+                                      plain % on everything else
+
+  gliter.tohtml         Neovim 0.10+  :GliterTohtml: the buffer  2html.vim (2001) + htmlize.el
+                                      (or the selection) out as  (1997) + troff (1973)
+                                      HTML with its syntax
+                                      colors, as Markdown, or as
+                                      PDF typeset by groff
+
+  gliter.w3             Neovim 0.10+  the web in a buffer:       W3 (1993) → eww (2013) → viww
+                                      :GliterW3 <url> — curl     (2026)
+                                      fetches and pandoc renders
+                                      the page (lynx without
+                                      pandoc, w3m with the links
+                                      taken out of the html, wls
+                                      lists the site); links
+                                      followable from the
+                                      keyboard while a spinner
+                                      covers the load, ]l/[l
+                                      walk them, gl quickfixes
+                                      them, H goes back, R
+                                      reloads, keywords search
+                                      DuckDuckGo
+
+  gliter.cmd            Neovim 0.10+  readline’s keys on the     readline (1988) + fish (2005)
+                                      built-in command line —
+                                      C-a/C-b/C-f/C-d/C-k/C-t,
+                                      M-b/M-f, M-BS/M-d, each
+                                      editing the line the way
+                                      setcmdline() allows;
+                                      Tab/S-Tab untouched, the
+                                      wildmenu keeps its own
+                                      keys (C-e reverts it,
+                                      Right walks it, the edit
+                                      keys sleep while it is up)
+                                      — and fish’s ghost: the
+                                      history’s continuation
+                                      dimmed after the line (:w
+                                      with file after it — Enter
+                                      runs :w alone, C-n or
+                                      C-f/C-e/Right at the end
+                                      takes the echo, C-p cycles
+                                      the echoes, one older at a
+                                      time); input()’s prompts —
+                                      netrw’s %, w3’s address —
+                                      get the same ride, their
+                                      answers in the @ history
+
+  gliter.which          Neovim 0.10+  a light which-key: pause   guide-key (2012) →
+                                      after a prefix (<Leader>,  which-key.el (2015) →
+                                      g, z, …) and a popup lists which-key.nvim (2021)
+                                      the mappings that continue
+                                      it, straight out of :map
+
+  gliter.screenkey      Neovim 0.9+   shows the keys you press   echo-keystrokes / view-lossage
+                                      as you press them — a      (1980s) → showkey.el (2015) →
+                                      float for screencasts and  screenkey.nvim (2024)
+                                      demos
+
+  ~~gliter.pack~~       Neovim 0.10+  deprecated — use           package.el + MELPA (2007/2012)
+                                      store.nvim instead
+  ---------------------------------------------------------------------------------------------
+
+NOT EVERYTHING NEEDS A MODULE*gliter.nvim-gliter-not-everything-needs-a-module*
+
+Commenting, for instance, is built into Neovim 0.10+ — `gc` toggles comments
+as an operator, `gcc` the line — so gliter ships no `gliter.comment`. A
+prefix key is all that is missing, and that is one line, not a module:
+
+>lua
+    vim.keymap.set("", "<leader>c", "gc", { remap = true, desc = "Toggle comment" })
+<
+
+The suite’s rule is exactly this: a module has to make something Neovim
+already ships nicer to use. When Neovim already ships the whole feature, the
+README is where it goes, not the runtime path.
 
 
 ADDING A MODULE                           *gliter.nvim-gliter-adding-a-module*
