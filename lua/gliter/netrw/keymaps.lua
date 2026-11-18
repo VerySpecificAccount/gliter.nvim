@@ -40,6 +40,90 @@ local function relocate(from, to)
   pcall(vim.fn.mapset, 'n', false, copy)
 end
 
+--- gliter's replacements for netrw's read-the-line keys, on custom-listing
+--- buffers (see custom.lua): Enter/`<2-LeftMouse>`/`<LeftMouse>` open,
+--- `o`/`v`/`t` split, `P` and the middle mouse open in the previous window,
+--- the preview key previews, and `qf` — netrw's own file-info key — shows
+--- the `F` float instead (same report, and it reads the line correctly).
+--- (Defined before M.attach, which calls them — they are locals.)
+local CUSTOM_NAV = { '<CR>', '<2-LeftMouse>', '<LeftMouse>', '<MiddleMouse>', 'o', 'v', 't', 'P', 'qf' }
+
+--- netrw's own keys that read the entry under the cursor off the line and
+--- have no gliter equivalent: removed on custom-listing buffers, where they
+--- would act on `ls -l`'s columns as if they were a file name. netrw
+--- re-installs them with its next re-list of a plain style.
+local CUSTOM_DROP = {
+  'gd', 'gf', 'gn', 'gb', 'qb', 'qF', 'qL', 'O', '<C-R>', '<C-LeftMouse>',
+  '<S-LeftMouse>', '<S-LeftDrag>', '<Del>', '<RightMouse>',
+  'mf', 'mu', 'mr', 'mt', 'mx', 'mX', 'ma', 'mb', 'mc', 'md', 'me', 'mg',
+  'mh', 'mm', 'ms', 'mv', 'mz', 'mT',
+}
+
+---@param buf integer
+---@param km GliterNetrwKeymaps
+local function attach_custom(buf, km)
+  local ops = require('gliter.netrw.ops')
+  local function nmap(lhs, fn, desc)
+    vim.keymap.set('n', lhs, fn, {
+      buffer = buf,
+      silent = true,
+      nowait = true,
+      desc = 'gliter.netrw: ' .. desc,
+    })
+  end
+  nmap('<CR>', function()
+    ops.open('edit')
+  end, 'open the entry under the cursor')
+  nmap('<2-LeftMouse>', function()
+    ops.open('edit')
+  end, 'open the entry under the cursor')
+  nmap('<LeftMouse>', function()
+    ops.open('edit')
+  end, 'open the entry under the cursor')
+  nmap('<MiddleMouse>', ops.open_prevwin, 'open the entry under the cursor in the previous window')
+  nmap('o', function()
+    ops.open('split')
+  end, 'open the entry under the cursor in a split')
+  nmap('v', function()
+    ops.open('vsplit')
+  end, 'open the entry under the cursor in a vertical split')
+  nmap('t', function()
+    ops.open('tabedit')
+  end, 'open the entry under the cursor in a new tab')
+  nmap('P', ops.open_prevwin, 'open the entry under the cursor in the previous window')
+  nmap('qf', ops.file, "show the file command's report on the entry under the cursor")
+  if km.preview then
+    nmap(km.preview, ops.preview, 'preview the entry under the cursor')
+  end
+  -- Inside nvim_buf_call: the deletions below must see buffer-local maps of
+  -- `buf`, and maparg()/keymap.del resolve those through the current buffer.
+  vim.api.nvim_buf_call(buf, function()
+    for _, lhs in ipairs(CUSTOM_DROP) do
+      pcall(vim.keymap.del, 'n', lhs, { buffer = buf })
+    end
+  end)
+end
+
+--- Remove the custom-listing replacements (only gliter's own maps — netrw's
+--- originals, re-installed by its re-list, are left alone). maparg() finds
+--- buffer-local maps only in the current buffer, hence the nvim_buf_call.
+---@param buf integer
+---@param km GliterNetrwKeymaps
+local function detach_custom(buf, km)
+  local mine = { unpack(CUSTOM_NAV) }
+  if km.preview then
+    mine[#mine + 1] = km.preview
+  end
+  vim.api.nvim_buf_call(buf, function()
+    for _, lhs in ipairs(mine) do
+      local m = vim.fn.maparg(lhs, 'n', false, true)
+      if type(m) == 'table' and m.buffer == 1 and m.desc and m.desc:find('^gliter%.netrw') then
+        pcall(vim.keymap.del, 'n', lhs, { buffer = buf })
+      end
+    end
+  end)
+end
+
 ---@param buf integer
 function M.attach(buf)
   local km = config.options.keys
@@ -149,6 +233,9 @@ function M.attach(buf)
     if km.cd then
       map('n', km.cd, ops.cd_here, 'cd to the directory listed here')
     end
+    if km.file then
+      map('n', km.file, ops.file, "show the file command's report on the entry under the cursor")
+    end
 
     -- Bookmarks: <C-1>..<C-9> jump to their slot (an unset slot is pointed
     -- here first); <C-b>1..9 point a slot here, <C-b>0 clears them, <C-b>l lists them.
@@ -240,6 +327,18 @@ function M.attach(buf)
     map('n', km.clear, actions.clear, 'clear all marks')
     map('n', km.edit, actions.edit_toggle, 'toggle in-place editing of the listing')
   end)
+
+  -- A custom listing (see custom.lua) is text netrw's own keys cannot read:
+  -- the ones that take the entry off the line — Enter, the splits, the
+  -- preview, netrw's own marks — are replaced by parser-driven versions,
+  -- and the ones whose job gliter already has a key for are simply removed
+  -- (netrw puts its own back on the next re-list, should the style leave
+  -- custom listing again).
+  if vim.b[buf].gliter_netrw_custom then
+    attach_custom(buf, km)
+  else
+    detach_custom(buf, km)
+  end
 end
 
 --- While the listing is directly editable (see edit.lua) every buffer-local normal, visual,
