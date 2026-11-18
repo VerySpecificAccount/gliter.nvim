@@ -557,7 +557,7 @@ vim.pack.add({
 require("lz.n").load({
     {
     "gliter.nvim",
-      event = 'BufReadPre',   -- or keys = ..., cmd = ..., ft = ...
+      event = 'DeferredUIEnter',   -- or keys = ..., cmd = ..., ft = ...
       after = function()
         require('gliter').setup {
           netrw = { star_kind = 'copy' },
