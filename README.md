@@ -153,195 +153,6 @@ and full documentation in `doc/gliter.<name>.md`.
 | [`gliter.screenkey`](#gliterscreenkey) | Neovim 0.9+ | shows the keys you press as you press them — a float for screencasts and demos | echo-keystrokes / view-lossage (1980s) → showkey.el (2015) → screenkey.nvim (2024) |
 | ~~[`gliter.pack`](doc/gliter.pack.md)~~ | Neovim 0.10+ | **deprecated** — use [store.nvim](https://github.com/alex-popov-tech/store.nvim) instead | package.el + MELPA (2007/2012) |
 
-## gliter.netrw
-
-Marks, bookmarks, one-key commands, regexp marking with a live
-highlight, and in-place editing for the built-in netrw (Neovim 0.12+). The
-marks are shared across every netrw buffer, window and tab page: `y`/`m`/`d`/`z`
-toggle copy, move, delete and archive marks, `Y`/`M`/`gD`/`Z` mark every entry,
-`p` applies them, `<C-b>1..9` bookmarks the directory and `<C-1>..<C-9>` jumps
-to it, `%<mark>` marks by regexp, the `*` families mark by extension,
-directory, symlink or executable bit, and `E` turns the listing into an
-editable buffer — add, remove and rename by editing the text, apply with
-`:w`. It does not replace netrw.
-
-Full documentation: [doc/gliter.netrw.md](doc/gliter.netrw.md).
-
-## gliter.undotree
-
-A `<Leader>u` toggle, colors and a bottom diff window for the
-built-in `:Undotree` viewer (the `nvim.undotree` dist plugin, Neovim 0.12+).
-The module loads the viewer for you, colors every part of the tree panel —
-branch glyphs, node markers, sequence numbers, time stamps, the current
-state — and shows the diff of each undo step in one full-width window at the
-bottom of the screen.
-
-Full documentation: [doc/gliter.undotree.md](doc/gliter.undotree.md).
-
-## gliter.multicursor
-
-Keys for the built-in multicursors (Neovim 0.13+): `<M-i>`
-puts a cursor on every line of the selection (in Normal mode, at the cursor
-position), `<M-a>` puts one on every occurrence of the word or selection,
-`<Leader>cj`/`<Leader>ck` place a cursor and step, `<C-n>`/`<C-p>` add one at
-the next/previous occurrence, `<C-s>`/`<C-m>` skip, `<C-b>`/`<C-f>` remove
-one, `<C-=>` toggles whether motions replay at every cursor and `<Esc>`
-clears them all.
-
-Full documentation: [doc/gliter.multicursor.md](doc/gliter.multicursor.md).
-
-## gliter.treesitterRE
-
-Expand-region (the RE is for region-expand): press one key
-and the selection climbs a semantic ladder — word, key/value pair, the inside
-of the brackets (trimmed, then raw), the bracket pair itself, the enclosing
-statement — and another key walks the same ladder back down. `<M-f>`/`<M-b>`/
-`<M-u>`/`<M-o>` nudge the edges out and in, `gl`/`gh` jump between siblings,
-`gj`/`gk` between scopes. In buffers without a Tree-sitter parser the ladder
-runs word, bracket pairs, line, paragraph — every action still works.
-
-Full documentation: [doc/gliter.treesitterRE.md](doc/gliter.treesitterRE.md).
-
-## gliter.ctags
-
-The built-in ctags support with better defaults, a one-command
-interface and quickfix (Neovim 0.10+, `ctags` on `$PATH`). A tags file per
-project, generated on first use and regenerated (debounced) on save once it
-exists; `<Leader>]` lists the tags of the word under the cursor in a vertical
-picker, `<Leader>[` puts the same matches in the quickfix list.
-
-Full documentation: [doc/gliter.ctags.md](doc/gliter.ctags.md).
-
-## gliter.make
-
-Per-filetype `'makeprg'` and Emacs' `*compilation*` buffer for
-`:make`'s machinery (Neovim 0.9+): the output streams into a bottom window in
-terminal colors (run under a pty, the way Emacs' compile does), the command
-is echoed at the top, jumps land on the exact character whatever the
-errorformat said, and the same errors fill the quickfix. `<Leader>lm` runs
-it, a second press restarts — and a runner runs the file (`<Leader>lr`), the
-Visual selection, a grep (`<Leader>lp`) or a shell through one settable
-output function.
-
-Full documentation: [doc/gliter.make.md](doc/gliter.make.md).
-
-## gliter.repl
-
-A REPL per filetype with Spacemacs' send keys and iron.nvim's
-sending (Neovim 0.9+): `<Leader>ls` sends the selection (focus stays in the
-source buffer), `<Leader>lS` sends it and jumps in, `<Leader>ll` sends the
-line, `<Leader>lb` the buffer — a send with no live REPL starts one.
-`<Leader>le` evaluates headless: no REPL opened, the output in gliter.make's
-compilation buffer.
-
-Full documentation: [doc/gliter.repl.md](doc/gliter.repl.md).
-
-## gliter.textobj
-
-targets.vim's quote and separator objects (Neovim 0.9+): `vi"`
-behaves exactly like Vim's own object where Vim's own works — the pairing is
-translated from Neovim's `textobject.c`, so the parity on a quote and `a"`'s
-whitespace rule match the built-in exactly — and everywhere else it seeks:
-the next pair after the cursor first, then back to the pair before it, then
-the nearest one by distance. `in"`/`il"` force a direction; `i,` and friends
-select between the separators.
-
-Full documentation: [doc/gliter.textobj.md](doc/gliter.textobj.md).
-
-## gliter.sessions
-
-`:mksession` with a memory (Neovim 0.9+): `<Leader>ss` saves
-the session into its project's root — plain `:mksession` output under the
-name `Session.vim`, usable without gliter — and remembers it; `<Leader>sl`
-lists every known session in a float: `<CR>` activates, `d` deletes, saving
-again updates.
-
-Full documentation: [doc/gliter.sessions.md](doc/gliter.sessions.md).
-
-## gliter.readme
-
-The project's readme, opened or created by one key (Neovim
-0.9+): `<Leader>rr` opens it when it exists and creates a one-line skeleton
-when it does not (the file's name is an option); `<Leader>rl` is recentf
-applied to readmes — every readme you ever touched, most recent first:
-`<CR>` opens, `<C-t>`/`<C-w>`/`<C-v>` open it in a tab or a split, `d`
-forgets.
-
-Full documentation: [doc/gliter.readme.md](doc/gliter.readme.md).
-
-## gliter.justify
-
-Both margins flush (Neovim 0.9+): `g=` reflows the paragraph
-around the cursor to the width — greedy, exactly like `gq`'s filling — then
-distributes the leftover spaces between the words, every line but the last,
-the way a justified paragraph in a book does. On a Visual selection, or a
-`:GliterJustify` range, it justifies exactly those lines.
-
-Full documentation: [doc/gliter.justify.md](doc/gliter.justify.md).
-
-## gliter.matchit
-
-`%` for keywords (Neovim 0.9+): `M` — the key you gave `%` —
-jumps between the words that bracket a block: `if`/`end` in Lua,
-`function`/`endfunction` in Vim script, `<div>`/`</div>`, with the nesting
-counted exactly the way `%` counts brackets. `gM` walks the other way; plain
-`%` keeps its job on everything else. Word chains for Lua, Vim script, shell
-and C/C++ ship built in, yours merge over them.
-
-Full documentation: [doc/gliter.matchit.md](doc/gliter.matchit.md).
-
-## gliter.tohtml
-
-The buffer — or the selection — out (Neovim 0.10+):
-`:GliterTohtml` writes HTML with the buffer's own syntax colors, Markdown as
-a fenced code block, or PDF typeset by groff.
-
-Full documentation: [doc/gliter.tohtml.md](doc/gliter.tohtml.md).
-
-## gliter.w3
-
-The web in a buffer (Neovim 0.10+): `:GliterW3 <url>` — curl
-fetches, pandoc renders (lynx without pandoc, w3m with the links taken out of
-the html, `wls` lists the site's urls from its sitemaps). Links are
-followable from the keyboard while a spinner covers the load: `<CR>` opens
-the link on this line, `]l`/`[l` walk them, `gl` puts them in the quickfix,
-`H` goes back, `R` reloads — and an argument that is not an address searches
-DuckDuckGo.
-
-Full documentation: [doc/gliter.w3.md](doc/gliter.w3.md).
-
-## gliter.cmd
-
-readline's keys on the built-in command line, and fish's ghost on
-top of it (Neovim 0.10+): `C-a`/`C-b`/`C-f`/`C-d`/`C-k`/`C-t`, `M-b`/`M-f`,
-`M-BS`/`M-d` — each editing the line the way `setcmdline()` allows — while
-Tab/S-Tab and the wildmenu keep their own keys (the edit keys sleep while the
-wildmenu is up). The history's continuation is dimmed after the line, fish's
-autosuggestion: Enter runs the line alone, `C-n` takes the echo, `C-p` cycles
-the echoes. `input()`'s prompts — netrw's `%`, w3's address — get the same
-ride.
-
-Full documentation: [doc/gliter.cmd.md](doc/gliter.cmd.md).
-
-## gliter.which
-
-A light which-key (Neovim 0.10+): pause after a prefix —
-`<Leader>`, `<LocalLeader>`, `g`, `z`, `[`, `]` — and a popup lists every
-mapping that continues it, straight out of `:map`: the key, and the
-description its mapping carries. Pick one and it runs; keep typing fast and
-you never see the popup at all.
-
-Full documentation: [doc/gliter.which.md](doc/gliter.which.md).
-
-## gliter.screenkey
-
-Shows the keys you press, as you press them (Neovim 0.9+): a
-small float above the cmdline, the newest key highlighted, the rest fading
-away a moment after the last press. For screencasts, demos and pair
-sessions.
-
-Full documentation: [doc/gliter.screenkey.md](doc/gliter.screenkey.md).
-
 ## Not everything needs a module
 
 Commenting, for instance, is built into Neovim 0.10+ — `gc` toggles
@@ -1075,5 +886,195 @@ gliter stands on the shoulders of:
   pressed keys in a float, like the X11 screenkey tool before it
 * [alex-popov-tech/store.nvim](https://github.com/alex-popov-tech/store.nvim)
   — the package browser to use now that gliter.pack is deprecated
+
+
+## gliter.netrw
+
+Marks, bookmarks, one-key commands, regexp marking with a live
+highlight, and in-place editing for the built-in netrw (Neovim 0.12+). The
+marks are shared across every netrw buffer, window and tab page: `y`/`m`/`d`/`z`
+toggle copy, move, delete and archive marks, `Y`/`M`/`gD`/`Z` mark every entry,
+`p` applies them, `<C-b>1..9` bookmarks the directory and `<C-1>..<C-9>` jumps
+to it, `%<mark>` marks by regexp, the `*` families mark by extension,
+directory, symlink or executable bit, and `E` turns the listing into an
+editable buffer — add, remove and rename by editing the text, apply with
+`:w`. It does not replace netrw.
+
+Full documentation: [doc/gliter.netrw.md](doc/gliter.netrw.md).
+
+## gliter.undotree
+
+A `<Leader>u` toggle, colors and a bottom diff window for the
+built-in `:Undotree` viewer (the `nvim.undotree` dist plugin, Neovim 0.12+).
+The module loads the viewer for you, colors every part of the tree panel —
+branch glyphs, node markers, sequence numbers, time stamps, the current
+state — and shows the diff of each undo step in one full-width window at the
+bottom of the screen.
+
+Full documentation: [doc/gliter.undotree.md](doc/gliter.undotree.md).
+
+## gliter.multicursor
+
+Keys for the built-in multicursors (Neovim 0.13+): `<M-i>`
+puts a cursor on every line of the selection (in Normal mode, at the cursor
+position), `<M-a>` puts one on every occurrence of the word or selection,
+`<Leader>cj`/`<Leader>ck` place a cursor and step, `<C-n>`/`<C-p>` add one at
+the next/previous occurrence, `<C-s>`/`<C-m>` skip, `<C-b>`/`<C-f>` remove
+one, `<C-=>` toggles whether motions replay at every cursor and `<Esc>`
+clears them all.
+
+Full documentation: [doc/gliter.multicursor.md](doc/gliter.multicursor.md).
+
+## gliter.treesitterRE
+
+Expand-region (the RE is for region-expand): press one key
+and the selection climbs a semantic ladder — word, key/value pair, the inside
+of the brackets (trimmed, then raw), the bracket pair itself, the enclosing
+statement — and another key walks the same ladder back down. `<M-f>`/`<M-b>`/
+`<M-u>`/`<M-o>` nudge the edges out and in, `gl`/`gh` jump between siblings,
+`gj`/`gk` between scopes. In buffers without a Tree-sitter parser the ladder
+runs word, bracket pairs, line, paragraph — every action still works.
+
+Full documentation: [doc/gliter.treesitterRE.md](doc/gliter.treesitterRE.md).
+
+## gliter.ctags
+
+The built-in ctags support with better defaults, a one-command
+interface and quickfix (Neovim 0.10+, `ctags` on `$PATH`). A tags file per
+project, generated on first use and regenerated (debounced) on save once it
+exists; `<Leader>]` lists the tags of the word under the cursor in a vertical
+picker, `<Leader>[` puts the same matches in the quickfix list.
+
+Full documentation: [doc/gliter.ctags.md](doc/gliter.ctags.md).
+
+## gliter.make
+
+Per-filetype `'makeprg'` and Emacs' `*compilation*` buffer for
+`:make`'s machinery (Neovim 0.9+): the output streams into a bottom window in
+terminal colors (run under a pty, the way Emacs' compile does), the command
+is echoed at the top, jumps land on the exact character whatever the
+errorformat said, and the same errors fill the quickfix. `<Leader>lm` runs
+it, a second press restarts — and a runner runs the file (`<Leader>lr`), the
+Visual selection, a grep (`<Leader>lp`) or a shell through one settable
+output function.
+
+Full documentation: [doc/gliter.make.md](doc/gliter.make.md).
+
+## gliter.repl
+
+A REPL per filetype with Spacemacs' send keys and iron.nvim's
+sending (Neovim 0.9+): `<Leader>ls` sends the selection (focus stays in the
+source buffer), `<Leader>lS` sends it and jumps in, `<Leader>ll` sends the
+line, `<Leader>lb` the buffer — a send with no live REPL starts one.
+`<Leader>le` evaluates headless: no REPL opened, the output in gliter.make's
+compilation buffer.
+
+Full documentation: [doc/gliter.repl.md](doc/gliter.repl.md).
+
+## gliter.textobj
+
+targets.vim's quote and separator objects (Neovim 0.9+): `vi"`
+behaves exactly like Vim's own object where Vim's own works — the pairing is
+translated from Neovim's `textobject.c`, so the parity on a quote and `a"`'s
+whitespace rule match the built-in exactly — and everywhere else it seeks:
+the next pair after the cursor first, then back to the pair before it, then
+the nearest one by distance. `in"`/`il"` force a direction; `i,` and friends
+select between the separators.
+
+Full documentation: [doc/gliter.textobj.md](doc/gliter.textobj.md).
+
+## gliter.sessions
+
+`:mksession` with a memory (Neovim 0.9+): `<Leader>ss` saves
+the session into its project's root — plain `:mksession` output under the
+name `Session.vim`, usable without gliter — and remembers it; `<Leader>sl`
+lists every known session in a float: `<CR>` activates, `d` deletes, saving
+again updates.
+
+Full documentation: [doc/gliter.sessions.md](doc/gliter.sessions.md).
+
+## gliter.readme
+
+The project's readme, opened or created by one key (Neovim
+0.9+): `<Leader>rr` opens it when it exists and creates a one-line skeleton
+when it does not (the file's name is an option); `<Leader>rl` is recentf
+applied to readmes — every readme you ever touched, most recent first:
+`<CR>` opens, `<C-t>`/`<C-w>`/`<C-v>` open it in a tab or a split, `d`
+forgets.
+
+Full documentation: [doc/gliter.readme.md](doc/gliter.readme.md).
+
+## gliter.justify
+
+Both margins flush (Neovim 0.9+): `g=` reflows the paragraph
+around the cursor to the width — greedy, exactly like `gq`'s filling — then
+distributes the leftover spaces between the words, every line but the last,
+the way a justified paragraph in a book does. On a Visual selection, or a
+`:GliterJustify` range, it justifies exactly those lines.
+
+Full documentation: [doc/gliter.justify.md](doc/gliter.justify.md).
+
+## gliter.matchit
+
+`%` for keywords (Neovim 0.9+): `M` — the key you gave `%` —
+jumps between the words that bracket a block: `if`/`end` in Lua,
+`function`/`endfunction` in Vim script, `<div>`/`</div>`, with the nesting
+counted exactly the way `%` counts brackets. `gM` walks the other way; plain
+`%` keeps its job on everything else. Word chains for Lua, Vim script, shell
+and C/C++ ship built in, yours merge over them.
+
+Full documentation: [doc/gliter.matchit.md](doc/gliter.matchit.md).
+
+## gliter.tohtml
+
+The buffer — or the selection — out (Neovim 0.10+):
+`:GliterTohtml` writes HTML with the buffer's own syntax colors, Markdown as
+a fenced code block, or PDF typeset by groff.
+
+Full documentation: [doc/gliter.tohtml.md](doc/gliter.tohtml.md).
+
+## gliter.w3
+
+The web in a buffer (Neovim 0.10+): `:GliterW3 <url>` — curl
+fetches, pandoc renders (lynx without pandoc, w3m with the links taken out of
+the html, `wls` lists the site's urls from its sitemaps). Links are
+followable from the keyboard while a spinner covers the load: `<CR>` opens
+the link on this line, `]l`/`[l` walk them, `gl` puts them in the quickfix,
+`H` goes back, `R` reloads — and an argument that is not an address searches
+DuckDuckGo.
+
+Full documentation: [doc/gliter.w3.md](doc/gliter.w3.md).
+
+## gliter.cmd
+
+readline's keys on the built-in command line, and fish's ghost on
+top of it (Neovim 0.10+): `C-a`/`C-b`/`C-f`/`C-d`/`C-k`/`C-t`, `M-b`/`M-f`,
+`M-BS`/`M-d` — each editing the line the way `setcmdline()` allows — while
+Tab/S-Tab and the wildmenu keep their own keys (the edit keys sleep while the
+wildmenu is up). The history's continuation is dimmed after the line, fish's
+autosuggestion: Enter runs the line alone, `C-n` takes the echo, `C-p` cycles
+the echoes. `input()`'s prompts — netrw's `%`, w3's address — get the same
+ride.
+
+Full documentation: [doc/gliter.cmd.md](doc/gliter.cmd.md).
+
+## gliter.which
+
+A light which-key (Neovim 0.10+): pause after a prefix —
+`<Leader>`, `<LocalLeader>`, `g`, `z`, `[`, `]` — and a popup lists every
+mapping that continues it, straight out of `:map`: the key, and the
+description its mapping carries. Pick one and it runs; keep typing fast and
+you never see the popup at all.
+
+Full documentation: [doc/gliter.which.md](doc/gliter.which.md).
+
+## gliter.screenkey
+
+Shows the keys you press, as you press them (Neovim 0.9+): a
+small float above the cmdline, the newest key highlighted, the rest fading
+away a moment after the last press. For screencasts, demos and pair
+sessions.
+
+Full documentation: [doc/gliter.screenkey.md](doc/gliter.screenkey.md).
 
 Licensed under the [MIT License](LICENSE).
