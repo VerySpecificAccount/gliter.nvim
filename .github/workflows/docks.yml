@@ -14,26 +14,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
+      - name: Install pandoc and Neovim
+        run: sudo apt-get update && sudo apt-get install -y pandoc neovim
 
       - name: Get panvimdoc
         run: git clone --depth 1 https://github.com/kdheepak/panvimdoc /tmp/panvimdoc
 
       - name: Generate help files
         run: |
-          # README.md -> doc/gliter.nvim.txt
-          # doc/gliter.which.md -> doc/gliter.which.txt, and so on
           for f in README.md doc/*.md; do
             name=$(basename "$f" .md)
             if [ "$f" = "README.md" ]; then name="gliter.nvim"; fi
             /tmp/panvimdoc/panvimdoc.sh \
               --project-name "$name" \
               --input-file "$f" \
-              --vim-version "Neovim >= 0.8.0" \
+              --vim-version "Neovim >= 0.9.0" \
               --demojify \
               --treesitter
           done
+
+      - name: Generate help tags
+        run: nvim --headless -c "helptags doc" -c "qa!"
 
       - name: Commit files
         run: |
