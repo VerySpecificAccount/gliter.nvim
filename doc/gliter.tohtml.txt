@@ -1,5 +1,5 @@
 *gliter.tohtml.txt*
-                          For Neovim >= 0.8.0    Last change: 2026 November 18
+                          For Neovim >= 0.9.0    Last change: 2026 November 18
 
 ==============================================================================
 Table of Contents                            *gliter.tohtml-table-of-contents*
