@@ -111,8 +111,7 @@ unless you want its options applied there).
 
 ## Modules
 
-Every module has a section of its own below — link straight to one
-the way mini.nvim modules are linked, `gliter.nvim#gliter.netrw` —
+Every module has a section of its own below —
 and full documentation in `doc/gliter.<name>.md`.
 
 | Module | Needs | Adds | Stolen from |
