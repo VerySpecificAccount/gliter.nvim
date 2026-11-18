@@ -81,7 +81,7 @@ quote — or before the opening one when there is none after. Backslash-escaped
 quotes follow `'quoteescape'` (default `\`): they are content, not delimiters.
 
 
-EXACTLY LIKE VIM AT THE EDGES*gliter.textobj-gliter.textobj-exactly-like-vim-at-the-edges*
+EXACTLY LIKE VIM AT THE EDGES *gliter.textobj-gliter.textobj-exactly-like-vim-at-the-edges*
 
 - `ci"` on `""` inserts **between** the quotes — the empty region is
     completed as empty (one sacrificial space is inserted and selected,
@@ -105,7 +105,7 @@ EXACTLY LIKE VIM AT THE EDGES*gliter.textobj-gliter.textobj-exactly-like-vim-at-
     delimiter.
 
 
-WHERE GLITER DIFFERS — AND WHERE IT MATCHES*gliter.textobj-gliter.textobj-where-gliter-differs-—-and-where-it-matches*
+WHERE GLITER DIFFERS — AND WHERE IT MATCHES *gliter.textobj-gliter.textobj-where-gliter-differs-—-and-where-it-matches*
 
 The whole plain-object behavior was verified against the real plugin, scenario
 by scenario (a fresh process per case, `targets#o` called directly). The plain
@@ -202,7 +202,7 @@ Vim’s own objects read them; for those, use nvim-various-textobjs
 not seek (the nearest one on each side is the whole idea); quote objects do.
 
 
-HOW THE MAPPINGS ARE MADE*gliter.textobj-gliter.textobj-how-the-mappings-are-made*
+HOW THE MAPPINGS ARE MADE *gliter.textobj-gliter.textobj-how-the-mappings-are-made*
 
 Every idiom was verified against real Neovim 0.10 and 0.12 before shipping. The
 operator-pending side is an `<expr>` mapping that computes the region and

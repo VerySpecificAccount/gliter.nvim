@@ -122,7 +122,7 @@ colors — and show a `[copy]`, `[move]`, `[delete]`, `[shell]` or `[archive]`
 tag. Marks for entries that were applied successfully are cleared.
 
 
-APPLYING THE MARKS WITH P*gliter.netrw-gliter.netrw-applying-the-marks-with-p*
+APPLYING THE MARKS WITH P *gliter.netrw-gliter.netrw-applying-the-marks-with-p*
 
 - **copy / move marks** are pasted into the current directory (in tree style:
     into the directory under the cursor). When a pasted entry already exists you
@@ -207,7 +207,7 @@ consumed by `!`; run marks show as `[run]` and are what `x` prefers. `p`
 ignores both.
 
 
-MARKING MANY ENTRIES AT ONCE*gliter.netrw-gliter.netrw-marking-many-entries-at-once*
+MARKING MANY ENTRIES AT ONCE *gliter.netrw-gliter.netrw-marking-many-entries-at-once*
 
   -----------------------------------------------------------------------
   Key                         Action
@@ -287,7 +287,7 @@ on, so it is a gliter.netrw buffer like any other: same keys, same marks, same
 decoration.
 
 
-EDITING THE LISTING IN PLACE (E)*gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)*
+EDITING THE LISTING IN PLACE (E) *gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)*
 
 `E` turns the listing buffer itself into an ordinary editable buffer (no popup,
 no new window):

@@ -104,7 +104,7 @@ A `+` before a name marks an **installed** plugin — the spec or clone
 gliter.pack knows about.
 
 
-INSTALLING, AND UNINSTALLING*gliter.pack-gliter.pack-installing,-and-uninstalling*
+INSTALLING, AND UNINSTALLING *gliter.pack-gliter.pack-installing,-and-uninstalling*
 
 `X` **asks first** — what, through which manager, landing where — and then
 just does it: for each entry a spec is written where your manager looks, with
@@ -145,7 +145,7 @@ your setup lives:
 <
 
 
-WHEN THE NETWORK IS THE PROBLEM*gliter.pack-gliter.pack-when-the-network-is-the-problem*
+WHEN THE NETWORK IS THE PROBLEM *gliter.pack-gliter.pack-when-the-network-is-the-problem*
 
 Each source has **mirrors**, tried in order until one answers — jsDelivr’s
 endpoints first (`fastly.jsdelivr.net`, `cdn.jsdelivr.net`;

@@ -161,7 +161,7 @@ ladder stops at the outermost statement; without one, at the paragraph.
 `<M-BS>` walks the same rungs back down, one per press.
 
 
-<M-BS> (SHRINK) DETAILS*gliter.treesitterRE-gliter.treesitterre-<m-bs>-(shrink)-details*
+<M-BS> (SHRINK) DETAILS *gliter.treesitterRE-gliter.treesitterre-<m-bs>-(shrink)-details*
 
 - after any treesitterRE operation it **undoes the last change** — ladder
     steps, word extensions (`<M-f>`/`<M-b>`/`<M-u>`/`<M-o>`), word hops and
@@ -172,7 +172,7 @@ ladder stops at the outermost statement; without one, at the paragraph.
 - when the history is exhausted it leaves Visual mode
 
 
-<M-N>/<M-P> VS GL/GH*gliter.treesitterRE-gliter.treesitterre-<m-n>/<m-p>-vs-gl/gh*
+<M-N>/<M-P> VS GL/GH *gliter.treesitterRE-gliter.treesitterre-<m-n>/<m-p>-vs-gl/gh*
 
 `<M-n>`/`<M-p>` cycle through the **flat sequence of nodes at the current tree
 depth** — not just the siblings of the current node, but the nodes continuing
@@ -216,7 +216,7 @@ So a selection ending in `},` grabs the local `},` — it never jumps to the
 next line for punctuation.
 
 
-<M-U>/<M-O> (LEFT EDGE, CHARACTER-WISE)*gliter.treesitterRE-gliter.treesitterre-<m-u>/<m-o>-(left-edge,-character-wise)*
+<M-U>/<M-O> (LEFT EDGE, CHARACTER-WISE) *gliter.treesitterRE-gliter.treesitterre-<m-u>/<m-o>-(left-edge,-character-wise)*
 
 The `v_l`/`v_h` equivalent for the **left** side of the selection, one
 **character** at a time: `<M-u>` extends the left edge left (staying on the

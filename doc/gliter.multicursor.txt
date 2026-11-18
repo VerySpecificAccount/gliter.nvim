@@ -49,7 +49,7 @@ README’s default setup and the table below hold the whole layout:
 <
 
 
-WHERE IT COMES FROM*gliter.multicursor-gliter.multicursor-where-it-comes-from*
+WHERE IT COMES FROM *gliter.multicursor-gliter.multicursor-where-it-comes-from*
 
 The module started from jceb <https://github.com/jceb>’s
 multicursor-mappings.nvim <https://github.com/jceb/multicursor-mappings.nvim>
