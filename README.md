@@ -1060,4 +1060,6 @@ sessions.
 
 Full documentation: [doc/gliter.screenkey.md](doc/gliter.screenkey.md).
 
+---
+
 Licensed under the [MIT License](LICENSE).
