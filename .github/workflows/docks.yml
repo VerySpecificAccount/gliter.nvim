@@ -18,6 +18,7 @@ jobs:
           treesitter: true
       - name: Commit files
         run: |
+          git config --local user.name "VerySpecificAccount via github-actions"
           git add doc
           git commit -m "docs: update help docs" || true
       - name: Push
