@@ -1,4 +1,4 @@
-[README(1).md](https://github.com/user-attachments/files/35020369/README.1.md)# gliter
+# gliter
 
 **Emacs ideas, Neovim-native.** A suite of opt-in Neovim plugins that
 improve what Neovim already ships — no framework, no dependencies,
