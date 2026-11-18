@@ -13,19 +13,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: panvimdoc
-        uses: kdheepak/panvimdoc@main
-        with:
-          input_file: README.md
-          vimdoc: gliter.nvim
-          version: 'Neovim >= 0.8.0'
-          demojify: true
-          treesitter: true
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Get panvimdoc
+        run: git clone --depth 1 https://github.com/kdheepak/panvimdoc /tmp/panvimdoc
+
+      - name: Generate help files
+        run: |
+          # README.md -> doc/gliter.nvim.txt
+          # doc/gliter.which.md -> doc/gliter.which.txt, and so on
+          for f in README.md doc/*.md; do
+            name=$(basename "$f" .md)
+            if [ "$f" = "README.md" ]; then name="gliter.nvim"; fi
+            /tmp/panvimdoc/panvimdoc.sh \
+              --project-name "$name" \
+              --input-file "$f" \
+              --vim-version "Neovim >= 0.8.0" \
+              --demojify \
+              --treesitter
+          done
+
       - name: Commit files
         run: |
           git config --local user.name "VerySpecificAccount via github-actions"
           git add doc
           git commit -m "docs: update help docs" || true
+
       - name: Push
         uses: ad-m/github-push-action@master
         with:
