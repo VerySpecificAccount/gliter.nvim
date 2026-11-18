@@ -19,6 +19,11 @@ want; nothing loads without a `setup()` call. [Jump to the modules ↓](#modules
 
 - [Why gliter?](#why-gliter)
 - [Installation](#installation)
+- [Not everything needs a module](#not-everything-needs-a-module)
+- [The default setup](#the-default-setup)
+- [Adding a module](#adding-a-module)
+- [Stolen from Emacs](#stolen-from-emacs)
+- [Prior art](#prior-art)
 - [Modules](#modules)
   - [gliter.netrw](#gliternetrw)
   - [gliter.undotree](#gliterundotree)
@@ -37,11 +42,6 @@ want; nothing loads without a `setup()` call. [Jump to the modules ↓](#modules
   - [gliter.cmd](#glitercmd)
   - [gliter.which](#gliterwhich)
   - [gliter.screenkey](#gliterscreenkey)
-- [Not everything needs a module](#not-everything-needs-a-module)
-- [The default setup](#the-default-setup)
-- [Adding a module](#adding-a-module)
-- [Stolen from Emacs](#stolen-from-emacs)
-- [Prior art](#prior-art)
 
 ## Why gliter?
 
