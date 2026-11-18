@@ -70,22 +70,22 @@ through [lz.n](https://github.com/lumen-oss/lz.n)'s handlers — `data`
 carries the lz.n spec (`event`, `keys`, `cmd`, `ft`, …) for the plugin:
 
 ```lua
-vim.pack.add({ 'https://github.com/lumen-oss/lz.n' })
-
 vim.pack.add({
-  {
-    src = 'https://github.com/VerySpecificAccount/gliter.nvim',
-    data = {
+ "https://github.com/lumen-oss/lz.n" ,
+ "https://github.com/VerySpecificAccount/gliter.nvim"
+})
+
+require("lz.n").load({
+    {
+    "gliter.nvim",
       event = 'BufReadPre',   -- or keys = ..., cmd = ..., ft = ...
       after = function()
         require('gliter').setup {
           netrw = { star_kind = 'copy' },
-          treesitterRE = {},
+          -- treesitterRE = {}, -- wouldn't be included
         }
       end,
     },
-  },
-}, { load = require('lz.n').load })
 ```
 
 ### Without a plugin manager
