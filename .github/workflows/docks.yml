@@ -22,16 +22,32 @@ jobs:
 
       - name: Generate help files
         run: |
+          mkdir -p /tmp/docsrc
           for f in README.md doc/*.md; do
             name=$(basename "$f" .md)
             if [ "$f" = "README.md" ]; then name="gliter.nvim"; fi
+            # Badge links ([![...](img)](url)) are web chrome: panvimdoc
+            # renders them as `<LICENSE> <https://neovim.io>` noise lines in
+            # the help file, so they are stripped from the copy it reads.
+            # A relative [text](LICENSE) link is unwrapped to its text for
+            # the same reason — the target does not exist from doc/.
+            sed -E -e '/^\[!\[/d' -e 's/\[([^]]*)\]\(LICENSE\)/\1/g' "$f" > "/tmp/docsrc/$(basename "$f")"
             /tmp/panvimdoc/panvimdoc.sh \
               --project-name "$name" \
-              --input-file "$f" \
+              --input-file "/tmp/docsrc/$(basename "$f")" \
               --vim-version "Neovim >= 0.9.0" \
               --demojify \
               --treesitter
           done
+
+      - name: Fix up help files
+        run: |
+          # A heading whose uppercase text plus its tag is wider than
+          # panvimdoc's line loses the separating space —
+          # `NOT EVERYTHING NEEDS A MODULE*gliter.nvim-...*` — and
+          # :helptags then cannot see the tag (it must be preceded by
+          # whitespace), so every |link| to it breaks. Put the space back.
+          sed -i -E 's/([^ ])(\*gliter[^*| ]+\*)$/\1 \2/' doc/*.txt
 
       - name: Generate help tags
         run: nvim --headless -c "helptags doc" -c "qa!"
