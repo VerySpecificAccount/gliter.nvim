@@ -148,6 +148,144 @@ local function wide_cells(line)
   return cells
 end
 
+---------------------------------------------------------------------------
+-- Custom listing (`setup { listing = 'ls -ltrhF' }`; rendered by custom.lua)
+---------------------------------------------------------------------------
+
+--- ls's classify suffixes: `/` directory, `@` symlink, `*` executable,
+--- `|` fifo, `=` socket.
+local CLASSIFY = '/%@*|='
+
+--- The real entries of `dir` as a name -> is_dir table.
+local function name_set(dir)
+  local set = {}
+  for _, e in ipairs(fs.list(dir)) do
+    set[e.name] = e.type == 'directory'
+  end
+  return set
+end
+
+--- A shown token back to a real entry: the token itself when a file wears
+--- every character of its name (a name may legitimately end in `*`), else
+--- the token minus one classify suffix — and whether that suffix was the
+--- directory `/`.
+local function resolve_custom(set, token)
+  if token == '' then
+    return nil
+  end
+  if set[token] ~= nil then
+    return token, set[token]
+  end
+  local base, suffix = token:match('^(.-)([' .. CLASSIFY .. '])$')
+  if base ~= nil and base ~= '' and set[base] ~= nil then
+    return base, suffix == '/'
+  end
+  return nil
+end
+
+--- Positions where an entry name can begin on a line: the first non-blank
+--- of the line and of every blank run after it.
+local function word_starts(line)
+  local out, gap = {}, true
+  for pos = 1, #line do
+    local c = line:sub(pos, pos)
+    if c == ' ' or c == '\t' then
+      gap = true
+    else
+      if gap then
+        out[#out + 1] = pos
+      end
+      gap = false
+    end
+  end
+  return out
+end
+
+--- One custom-listing line's entries. Three shapes, in order:
+---   1. `ls -m`'s comma stream — every ', '-separated chunk an entry;
+---   2. `ls -C`/`-x` column rows — every chunk of a 2+-space split an entry
+---      (taken only when every chunk resolves: a `ls -l` line's metadata
+---      never does, so the long format falls through to 3);
+---   3. the entry at the end — the longest token starting at a word start
+---      that resolves (a long-format name field, or the plain one-per-line
+---      name), a symlink's ` -> target` tail cut away first — so `link ->
+---      target` reads as `link`, while a file genuinely named `x -> y` is
+---      still tried whole (it only loses to a plain `x` sitting next to it,
+---      a shape no listing can tell apart).
+local function parse_custom_line(set, dir, line, lnum, out)
+  if line == '' then
+    return
+  end
+  local function try_chunks(pat, plain)
+    local res, pos = {}, 1
+    while true do
+      local s, e = line:find(pat, pos, plain)
+      if not s then
+        break
+      end
+      res[#res + 1] = { text = line:sub(pos, s - 1), col = pos }
+      pos = e + 1
+    end
+    if #res == 0 then
+      return false
+    end
+    res[#res + 1] = { text = line:sub(pos), col = pos }
+    if #res < 2 then
+      return false
+    end
+    local resolved = {}
+    for i, c in ipairs(res) do
+      local name, is_dir = resolve_custom(set, c.text)
+      if not name then
+        return false
+      end
+      resolved[i] = { c, name, is_dir }
+    end
+    for _, r in ipairs(resolved) do
+      out[#out + 1] = make(lnum, r[1].col - 1, r[1].text, dir, r[2], r[3])
+    end
+    return true
+  end
+  local function suffix_from(text)
+    for _, pos in ipairs(word_starts(text)) do
+      local token = text:sub(pos)
+      local name, is_dir = resolve_custom(set, token)
+      if name then
+        out[#out + 1] = make(lnum, pos - 1, token, dir, name, is_dir)
+        return true
+      end
+    end
+    return false
+  end
+  if try_chunks(', ', true) then
+    return
+  end
+  if try_chunks('%s%s+', false) then
+    return
+  end
+  if line:find(' -> ', 1, true) then
+    if not suffix_from(line:gsub(' %-> .-$', '')) then
+      suffix_from(line)
+    end
+    return
+  end
+  suffix_from(line)
+end
+
+---@param ctx GliterNetrwCtx
+---@param from integer
+---@param to integer
+---@return GliterNetrwEntry[]
+local function parse_custom(ctx, from, to)
+  local lines = vim.api.nvim_buf_get_lines(ctx.buf, from - 1, to, false)
+  local set = name_set(ctx.root)
+  local out = {}
+  for idx, line in ipairs(lines) do
+    parse_custom_line(set, ctx.root, line, from + idx - 1, out)
+  end
+  return out
+end
+
 ---@param ctx GliterNetrwCtx
 ---@param from integer
 ---@param to integer
@@ -203,6 +341,9 @@ function M.parse(ctx, from, to)
   if ctx.style == M.TREE then
     return parse_tree(ctx, from, to)
   end
+  if vim.b[ctx.buf].gliter_netrw_custom then
+    return parse_custom(ctx, from, to)
+  end
   local out = {}
   local lines = vim.api.nvim_buf_get_lines(ctx.buf, from - 1, to, false)
   for idx, line in ipairs(lines) do
@@ -238,7 +379,8 @@ function M.all(ctx)
   return M.parse(ctx, ctx.first, vim.api.nvim_buf_line_count(ctx.buf))
 end
 
---- The entry under the cursor (wide style: the cell under the cursor).
+--- The entry under the cursor (wide style: the cell under the cursor; a
+--- custom listing with several entries per line: the same column pick).
 ---@param ctx GliterNetrwCtx
 ---@return GliterNetrwEntry?
 function M.entry_at_cursor(ctx)
@@ -248,7 +390,7 @@ function M.entry_at_cursor(ctx)
     return nil
   end
   local pick = entries[1]
-  if ctx.style == M.WIDE then
+  if ctx.style == M.WIDE or vim.b[ctx.buf].gliter_netrw_custom then
     for _, e in ipairs(entries) do
       if e.col <= col then
         pick = e
@@ -309,12 +451,20 @@ end
 -- Refresh / reveal
 ---------------------------------------------------------------------------
 
---- Ask netrw to re-list the directory shown in `win` (netrw's own <C-l>).
+--- Ask netrw to re-list the directory shown in `win` (netrw's own <C-l>),
+--- then re-apply the custom listing synchronously (gliter.netrw.custom) so
+--- anything following the refresh — a reveal, say — reads the custom text,
+--- not the netrw text that is about to be replaced. The require is lazy:
+--- custom.lua needs this module, and the cycle would not load otherwise.
 ---@param win integer
 function M.refresh_win(win)
   vim.api.nvim_win_call(win, function()
     pcall(vim.cmd.normal, { args = { vim.keycode('<Plug>NetrwRefresh') }, mods = { silent = true } })
   end)
+  local buf = vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win)
+  if buf and vim.bo[buf].filetype == 'netrw' and vim.b[buf].gliter_netrw_custom then
+    require('gliter.netrw.custom').render(buf)
+  end
 end
 
 ---@param ctx GliterNetrwCtx
