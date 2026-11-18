@@ -873,8 +873,8 @@ or Neovim thing it inspired, usually by a decade or more:
     which-key.nvim <https://github.com/folke/which-key.nvim> (2021)
     ported it to Neovim. gliter.which is the light version: the popup and
     nothing more.
-- view-lossage / echo-keystrokes → showkey.el (2015) → screenkey.nvim
-    (2024) → gliter.screenkey. Emacs has shown your keys since the 1980s:
+- **view-lossage / echo-keystrokes → showkey.el (2015) → screenkey.nvim
+    1. → gliter.screenkey.** Emacs has shown your keys since the 1980s:
     `echo-keystrokes` echoes an unfinished key sequence in the echo area
     after a pause, and `view-lossage` (`C-h l`) lists the last keystrokes
     you typed — both built-ins. showkey.el <https://www.emacswiki.org/emacs/ShowKey>
@@ -954,7 +954,7 @@ or Neovim thing it inspired, usually by a decade or more:
     Tab and S-Tab above all — instead of a line of its own: the keys
     readline spells that the built-in line lacks, and the ghost, nothing
     more. gelguy’s wilder.nvim <https://github.com/gelguy/wilder.nvim>
-    (2019) is the road not taken — a completion UI replacing the line
+    1. is the road not taken — a completion UI replacing the line
     rather than riding on it.
 
 The one Emacs package gliter cannot have yet is Org-mode: gliter only improves
@@ -969,7 +969,7 @@ gliter stands on the shoulders of:
 **Emacs**, which had every idea here decades early:
 
 - dired <https://www.gnu.org/software/emacs/manual/html_node/emacs/Dired.html>
-    (1986) and
+    1. and
     wdired <https://www.gnu.org/software/emacs/manual/html_node/emacs/Wdired.html>
     (early 2000s) — the marks, the one-key commands, the editable listing
 - undo-tree <https://gitlab.com/tarsius/undo-tree> (2009) — the branching
@@ -977,27 +977,27 @@ gliter stands on the shoulders of:
 - expand-region <https://github.com/magnars/expand-region.el> (2011) — the
     selection ladder
 - multiple-cursors <https://github.com/magnars/multiple-cursors.el>
-    (2012) — cursors at every occurrence
+    1. — cursors at every occurrence
 - SLIME <https://common-lisp.net/project/slime/> (2003) — send code from
     the buffer to a live REPL, keep the focus where it was
 - package.el <https://www.gnu.org/software/emacs/manual/html_node/emacs/Packages.html>
-    (2007) and MELPA <https://melpa.org> (2012) — browse, read about
+    1. and MELPA <https://melpa.org> (2012) — browse, read about
     and install packages from inside the editor
 - desktop.el <https://www.gnu.org/software/emacs/manual/html_node/emacs/Saving-Emacs-Sessions.html>
     (1990s) — save the whole desktop, list it, bring it back
 - recentf <https://www.gnu.org/software/emacs/manual/html_node/emacs/File-Conveniences.html>
-    (2002) — the files you visited, most recent first
+    1. — the files you visited, most recent first
 - guide-key <https://github.com/kai2nenobu/guide-key> (Tsunenobu Kai,
-    2012) — the popup of the bindings that follow a prefix, which-key.el’s
+    1. — the popup of the bindings that follow a prefix, which-key.el’s
     direct ancestor
 - which-key.el <https://github.com/justbur/emacs-which-key> — the
     rewrite that reached Emacs 30’s core: the popup gliter.which is the
     light version of
 - showkey.el <https://www.emacswiki.org/emacs/ShowKey> (Drew Adams,
-    2015) — the keys you use as you use them, in a tooltip or a log frame;
+    1. — the keys you use as you use them, in a tooltip or a log frame;
     gliter.screenkey’s ancestor
 - lynx <https://lynx.invisible-island.net/> (University of Kansas,
-    1992) and w3m <https://w3m.sourceforge.net> (Akinori Ito, 1995) —
+    1. and w3m <https://w3m.sourceforge.net> (Akinori Ito, 1995) —
     the text browsers whose dumps gliter.w3 renders
 - wls <https://github.com/joelkoen/wls> — "web ls": a site’s urls from
     its sitemaps, gliter.w3’s third viewer
@@ -1020,9 +1020,9 @@ gliter stands on the shoulders of:
 - stevearc/oil.nvim <https://github.com/stevearc/oil.nvim> (2022) — edit
     the filesystem like a buffer: wdired, as a whole plugin
 - lth-go/nvim-expand-region <https://github.com/lth-go/nvim-expand-region>
-    (2025) — the ladder order `treesitterRE` follows
+    1. — the ladder order `treesitterRE` follows
 - jceb/multicursor-mappings.nvim <https://github.com/jceb/multicursor-mappings.nvim>
-    (2026) — the multicursor bindings gliter.multicursor’s `keys` table
+    1. — the multicursor bindings gliter.multicursor’s `keys` table
     started from
 - wellle/targets.vim <https://github.com/wellle/targets.vim> (2014) — the
     quote and separator text objects gliter.textobj ports, seeking included

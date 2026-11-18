@@ -1,0 +1,145 @@
+*gliter.repl.txt*
+                          For Neovim >= 0.8.0    Last change: 2026 November 18
+
+==============================================================================
+Table of Contents                              *gliter.repl-table-of-contents*
+
+1. gliter.repl                                       |gliter.repl-gliter.repl|
+  - Stolen from Emacs              |gliter.repl-gliter.repl-stolen-from-emacs|
+  - Keys                                        |gliter.repl-gliter.repl-keys|
+  - How it works                        |gliter.repl-gliter.repl-how-it-works|
+  - Notes                                      |gliter.repl-gliter.repl-notes|
+
+==============================================================================
+1. gliter.repl                                       *gliter.repl-gliter.repl*
+
+A REPL for every filetype, with Spacemacs’ shell-layer keys and iron.nvim’s
+sending (Neovim 0.9+): send code from the buffer you are editing to a live
+interpreter, without leaving it.
+
+
+STOLEN FROM EMACS                  *gliter.repl-gliter.repl-stolen-from-emacs*
+
+The keys are Spacemacs
+<https://develop.spacemacs.org/layers/+lang/shell/README.html>'s `SPC l ...`
+(the shell layer’s REPL keys, one Leader shorter), and the behavior is SLIME
+<https://common-lisp.net/project/slime/>’s / iron.nvim
+<https://github.com/Vigemus/iron.nvim>’s: sends are text on the REPL’s
+stdin — the interpreter sees them as if typed, its output stays in its
+terminal, and the cursor never leaves your buffer unless a key asked for it.
+Headless evaluation (`<Leader>le`) is Emacs' `eval-last-sexp` habit: run the
+code, show the result, open nothing.
+
+
+KEYS                                            *gliter.repl-gliter.repl-keys*
+
+  -----------------------------------------------------------------------
+  Key                Mode                   Action
+  ------------------ ---------------------- -----------------------------
+  <Leader>ls         Visual                 send the selection to the
+                                            REPL, keep focus in the
+                                            source buffer
+
+  <Leader>lS         Visual                 send the selection and jump
+                                            to the REPL, in insert mode
+
+  <Leader>ll         Normal                 send the current line — the
+                                            cursor moves to the next:
+                                            hold the key, walk the file
+                                            into the REPL
+
+  <Leader>lb         Normal                 send the whole buffer
+
+  <Leader>le         Normal + Visual        evaluate, headless: the line
+                                            / the selection runs with no
+                                            REPL opened — the output
+                                            lands in gliter.make’s
+                                            compilation buffer
+                                            (tracebacks jumpable); falls
+                                            back to a notice when
+                                            gliter.make is not set up
+
+  toggle             Normal                 show/hide the REPL window —
+                                            false by default,
+                                            e.g. <Leader>li
+  -----------------------------------------------------------------------
+Commands: `:GliterRepl` (the toggle), `:GliterReplSendLine`,
+`:GliterReplSendBuffer`, `:GliterReplEval`.
+
+All the keys are rows in the `keys` table of `setup()`; set one to `false` to
+disable it. They share the `<Leader>l` prefix with gliter.make’s `<Leader>lm`
+/ `lr` / `lp` — the same neighborhood Spacemacs’ `SPC l` is.
+
+
+HOW IT WORKS                            *gliter.repl-gliter.repl-how-it-works*
+
+- **One REPL per filetype**, `programs['python'] = 'python3 -i'` and
+    friends. The first send starts it (that is `auto_start`; set it to
+    `false` to be asked instead) in a bottom terminal window — the focus
+    stays in your buffer.
+- **The REPL outlives its window**: `q` in it only closes the window
+    (`bufhidden = hide`), the interpreter keeps running, and sends keep
+    going to the hidden terminal. `toggle` (or a jump-send) brings the
+    window back. When the process ends, the next send starts a fresh one.
+- **Sends are chansend()s** on the terminal’s job: no focus stolen, no
+    output redirected. A multi-line selection is **dedented** first (the
+    common indentation goes, the relative structure stays — what a nested
+    block needs), and the interpreters that want a blank line after a
+    block before running it (the classic python REPL’s `...` prompt) get
+    one — `extra_newline`.
+- **Headless evaluation** writes the snippet to a temp file and runs
+    `eval_programs[filetype]` on it through gliter.make: the output, with
+    its colors, lands in the compilation buffer and errors fill the
+    quickfix — jumpable, like a compile. No REPL is started or shown.
+
+>lua
+    require('gliter.repl').setup {
+      keys = {
+        send_selection = '<Leader>ls',
+        send_selection_jump = '<Leader>lS',
+        send_line = '<Leader>ll',
+        send_buffer = '<Leader>lb',
+        eval = '<Leader>le',
+        toggle = false,        -- e.g. '<Leader>li'
+      },
+      programs = {             -- one REPL per filetype; a table row works
+        python = 'python3 -i', -- too: python = { cmd = 'ptipython' }
+        lua = 'lua -i',
+        javascript = 'node -i',
+        sh = 'bash',
+        haskell = 'ghci',
+      },
+      eval_programs = {        -- <Leader>le: run the snippet with no REPL
+        python = 'python3',
+        lua = 'lua',
+        javascript = 'node',
+        sh = 'bash',
+        haskell = 'runhaskell',
+      },
+      extra_newline = { python = true }, -- these want a blank line after a
+                                 -- block before they run it
+      auto_start = true,       -- a send with no live REPL starts one
+      height = 12,             -- the REPL window's height
+      position = 'botright',   -- 'botright' (bottom) | 'vertical' (right)
+      dedent = true,           -- strip a selection's common indentation
+    }
+<
+
+or through gliter: `require('gliter').setup { repl = true }`.
+
+
+NOTES                                          *gliter.repl-gliter.repl-notes*
+
+- The REPL a send goes to is the one of the **current buffer’s filetype** — one python REPL serves every python buffer (iron.nvim’s
+    default, and Emacs’ idea of a dedicated `*Python*`).
+- REPLs are real terminals: zoom (gliter.zoom) can zoom them, i / t in
+    gliter.make’s output buffer still work for programs that started
+    asking for input there.
+- An unknown filetype is announced with the exact line to add — nothing
+    is guessed.
+
+Requires Neovim 0.9+.
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

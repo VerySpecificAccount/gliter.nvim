@@ -1,0 +1,118 @@
+*gliter.matchit.txt*
+                          For Neovim >= 0.8.0    Last change: 2026 November 18
+
+==============================================================================
+Table of Contents                           *gliter.matchit-table-of-contents*
+
+1. gliter.matchit                              |gliter.matchit-gliter.matchit|
+  - The walk                          |gliter.matchit-gliter.matchit-the-walk|
+  - The chains                      |gliter.matchit-gliter.matchit-the-chains|
+  - Options                            |gliter.matchit-gliter.matchit-options|
+  - Stolen from                    |gliter.matchit-gliter.matchit-stolen-from|
+
+==============================================================================
+1. gliter.matchit                              *gliter.matchit-gliter.matchit*
+
+`%` for keywords. The key you gave the matchit job — `M` by default, the key
+you rebound `%` to — jumps between the words that bracket a block: `if` and
+`end` in Lua, `function` and `endfunction` in Vim script, `fi` closing
+shell’s `if`, `#endif` closing `#ifdef`, `<div>` and `</div>` — with the
+nesting counted, exactly the way `%` counts brackets. `gM` (g%’s job) walks
+the other way.
+
+>lua
+    require('gliter').setup { matchit = {} }
+    -- or on its own:
+    require('gliter.matchit').setup {}
+<
+
+
+THE WALK                              *gliter.matchit-gliter.matchit-the-walk*
+
+  -------------------------------------------------------------------------
+  Key   On an opener or a middle (if, else,   On a closer (end, </div>, …)
+        …)
+  ----- ------------------------------------- -----------------------------
+  M     its matching closer, nesting counted  its matching opener
+        — if ↔ end, else → the end
+
+  gM    a middle: its matching opener (else → its matching opener
+        the if); an opener: the previous
+        member of the chain at the same level
+        (an elseif before it, a sibling’s
+        closer, the enclosing if)
+  -------------------------------------------------------------------------
+So `M` and `gM` differ only on the middle words — on `else`, `M` goes to the
+end of the block and `gM` back to its start — and on tags, where both toggle
+the two edges. In Visual mode the selection extends to the match; after an
+operator (`dM`, `cM`) the whole match word is included, the way `d%` includes
+both brackets.
+
+On a word that is none of the chain — or in a filetype with no chains — the
+key falls back to plain `%`: brackets, and everything `'matchpairs'` holds. A
+count keeps Vim’s own `[count]%` (go to N% of the file).
+
+**If M does not jump for you, look for a remap of your own.** A
+`vim.keymap.set('n', 'M', '%')` in your config — the natural thing to have
+done before installing gliter — runs after gliter’s `setup()` and wins over
+this module’s `M`. Remove it (plain `%` already does `%`), or pick another
+key with `keys.match` below. `:verbose nmap M` names the file the winning
+mapping came from.
+
+HTML tags: from `<div ...>` to the matching `</div>` and back, counting nested
+`<div>`s of the same name; self-closing tags (`<br/>`) count for nothing; the
+cursor can be anywhere inside the tag.
+
+
+THE CHAINS                          *gliter.matchit-gliter.matchit-the-chains*
+
+Three Vim regexes per filetype — `opens`, `middles`, `closes` — shipped for
+**lua, vim, sh/bash/zsh, c/cpp** (the C preprocessor pairs, plus `/*` and
+`*/`). Python has no closing keywords to chain and is left to the fallback. Add
+your own, or override a built-in, through `words`:
+
+>lua
+    require('gliter.matchit').setup {
+      words = {
+        ruby = {
+          opens  = [[\<\%(def\|class\|module\|begin\|case\)\>]],
+          middles = [[\<\%(rescue\|ensure\|else\|elsif\|when\)\>]],
+          closes = [[\<end\>]],
+        },
+      },
+    }
+<
+
+In netrw buffers `M` is netrw’s own (gliter.netrw’s move-all mark, a
+buffer-local mapping that wins there); everywhere else it is this module’s.
+
+
+OPTIONS                                *gliter.matchit-gliter.matchit-options*
+
+>lua
+    require('gliter.matchit').setup {
+      keys = {
+        match = 'M',  -- n/x/o: jump to the matching keyword / tag / bracket
+        back  = 'gM', -- n/x/o: the same walk, the other way
+      },
+      words = {},               -- your chains, merged over the built-ins
+      tags = { 'html', 'xhtml', 'xml' }, -- filetypes with <tag> matching
+    }
+<
+
+
+STOLEN FROM                        *gliter.matchit-gliter.matchit-stolen-from*
+
+matchit.vim
+<https://github.com/vim/vim/blob/master/runtime/pack/dist/opt/matchit/plugin/matchit.vim>
+— Raul Segura Acevedo’s 1996 script, grown by Benji Fisher — is the
+reference, and ships with Vim and Neovim as an optional plugin (`:packadd
+matchit`). It does more: backreferences, comment skipping, `%` from anywhere on
+the line, `[%`/`]%`, `i%`. gliter.matchit is the walk and nothing more. **For
+the rest, :packadd matchit or vim-matchup.**
+
+Requires Neovim 0.9+.
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:
