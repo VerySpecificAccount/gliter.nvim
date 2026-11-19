@@ -18,8 +18,9 @@ local M = {}
 ---@field delete_now string|false    delete the delete-marked entries (or the entry under the cursor), after confirmation
 ---@field execute string|false       toggle the executable bit on the marked entries (or the entry under the cursor, or — in Visual mode — each entry of the selection)
 ---@field symlink string|false       symlink the marked entries (or the entry under the cursor) into a typed directory
----@field shell string|false         run a shell command on the shell-marked entries, else on any marked entries, else on the entry under the cursor (`*` in the command stands for the files)
+---@field shell string|false         run a shell command on the shell-marked entries, else on any marked entries, else on the entry under the cursor (`*` in the command stands for the files); the command runs in a terminal window, so interactive commands (sudo's password prompt) work
 ---@field run_each string|false      run a shell command on each of those entries separately, in a terminal, one after another (`*` = the current entry); also the `x` MARK kind: `%x` and the `*x` family mark entries for it
+---@field file string|false          run the file command on the entry under the cursor and show its report in a floating window (default `F`)
 ---@field mkdir string|false         create a file, or a directory when the name ends in `/` (parents included)
 ---@field cd string|false            make the directory listed here the current working directory
 ---@field bookmark string|false       `<C-b>1`..`<C-b>9` point bookmark 1..9 at this directory; `<C-b>0` clears them all, `<C-b>l` lists them
@@ -39,6 +40,7 @@ local M = {}
 ---@field conflict 'ask'|'overwrite'|'skip'|'rename'
 ---@field indicators { copy: string|false, move: string|false, delete: string|false, shell: string|false, archive: string|false, run: string|false, copied: string|false, moved: string|false, new: string|false }
 ---@field edit { confirm: boolean }   `confirm`: ask before applying additions/renames/deletions
+---@field listing string|false      a shell command whose output replaces netrw's listing (e.g. 'ls -ltrhF', 'ls -d */'); false/nil = netrw's own listings
 ---@field notify_level integer    minimum vim.log.levels value to display
 M.defaults = {
   keys = {
@@ -62,6 +64,7 @@ M.defaults = {
     symlink = 'S',
     shell = '!',
     run_each = 'x',
+    file = 'F',
     mkdir = '+',
     cd = '<C-g>',
     bookmark = '<C-b>',
@@ -81,6 +84,11 @@ M.defaults = {
   -- netrw's own buffer-local keys removed in netrw buffers (gliter.netrw takes over the job).
   native_unmap = { 'gR', '+', '%' },
   conflict = 'ask',
+  -- A shell command whose output replaces netrw's listing (rendered by
+  -- custom.lua): 'ls -ltrhF' for the details, 'ls -d */' for directories
+  -- only — anything that runs in a shell and prints entry names. nil (or
+  -- false) keeps netrw's own listings and their styles.
+  listing = nil,
   indicators = {
     copy = '  [copy]',
     move = '  [move]',
