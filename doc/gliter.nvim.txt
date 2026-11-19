@@ -1,5 +1,5 @@
 *gliter.nvim.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 18
+                          For Neovim >= 0.9.0    Last change: 2026 November 19
 
 ==============================================================================
 Table of Contents                              *gliter.nvim-table-of-contents*
