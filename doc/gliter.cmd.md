@@ -66,8 +66,16 @@ a float that never takes focus — `:hi GliterCmdGhost` to taste):
   line becomes the entry, the cursor at its end, and the next echo
   ghosts after that;
 * `C-p` cycles the echoes — the other entries that also continue the
-  line, one older at a time, the text staying; past the last one
-  nothing is shown, and `C-p` is the built-in history recall again;
+  line, one older at a time, the text staying; `C-n` cycles them back,
+  one newer at a time, and at the newest it takes the ghost (so one
+  `C-p` to peek at the older echo and one `C-n` to return leaves the
+  line exactly as it was); past the last one nothing is shown, and
+  `C-p` is the built-in history recall again — as `C-n` is when there
+  is no ghost at all;
+* `C-y` and `M-l` take whichever echo is showing — the line becomes it,
+  the cursor at its end. (`C-y`'s built-in job on the line, copying a
+  modeless selection, is given up for it; while the wildmenu is up the
+  menu keeps the key — its own accept.)
 * the entries come from the line's own history: `:` commands for the
   Ex line, `/` and `?` searches for the search line, `@` answers for
   `input()`'s prompts.
