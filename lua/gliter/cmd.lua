@@ -8,12 +8,14 @@
 --- line lacks, plus the ghost echo: the history's continuation drawn
 --- dimmed after the line, fish's autosuggestion (2005). `:w` with
 --- ` file` ghosted after it runs `:w` — Enter runs the text alone,
---- the ghost is never the line; C-n (or C-f, C-e or Right at the end
---- of the line) takes the echo, and C-p cycles the echoes — the
---- entries the line could be, one older at a time, the text staying.
---- The other prompts — input()'s, netrw's `%<mark>` regexp, w3's
---- address — are command lines too, and the same keys and the same
---- ghost ride on them (their answers live in the `@` history).
+--- the ghost is never the line; C-p cycles the echoes — the entries
+--- the line could be, one older at a time, the text staying — C-n
+--- cycles them back, and at the newest it takes the echo (so do C-f,
+--- C-e and Right at the end of the line); C-y and M-l take whichever
+--- echo is showing. The other prompts — input()'s, netrw's `%<mark>`
+--- regexp, w3's address — are command lines too, and the same keys
+--- and the same ghost ride on them (their answers live in the `@`
+--- history).
 ---
 --- The editing keys are readline's (Brian Fox, 1988): C-a/C-e to the
 --- ends of the line, C-b/C-f by character, M-b/M-f by word, C-d
@@ -404,12 +406,12 @@ end
 --- to it — the single-byte ones handed back raw (an <expr> map's
 --- result is read as keys, and one byte is a key), Right riding C-n's
 --- next match (a mapping-bred Tab would type itself into the line:
---- 'wildcharm' lore) — and everything else sleeps, handed back
---- nothing: the menu stays, nothing happens.
+--- 'wildcharm' lore), C-y its accept — and everything else sleeps,
+--- handed back nothing: the menu stays, nothing happens.
 ---@param key string the key's notation, e.g. '<C-n>'
 ---@return string keys to hand back instead ('' to sleep)
 local function menu_policy(key)
-  if key == '<C-n>' or key == '<C-p>' or key == '<C-e>' or key == '<Right>' then
+  if key == '<C-n>' or key == '<C-p>' or key == '<C-e>' or key == '<C-y>' or key == '<Right>' then
     return keycode(key == '<Right>' and '<C-n>' or key)
   end
   return ''
@@ -519,8 +521,14 @@ local ghost_keys = {
     run = forward,
   },
   ['<C-n>'] = {
-    desc = 'take the ghost; without one, the newer history (the built-in key)',
+    desc = 'the echoes back the other way, one newer at a time; at the newest, the ghost taken; without one, the newer history (the built-in key)',
     run = function()
+      local st = M._state
+      if st and st.idx > 1 then
+        st.idx = st.idx - 1
+        draw() -- the text did not change: no CmdlineChanged will come
+        return
+      end
       if not take() then
         return keycode('<C-n>')
       end
@@ -535,6 +543,18 @@ local ghost_keys = {
       end
       st.idx = st.idx + 1
       draw() -- the text did not change: no CmdlineChanged will come
+    end,
+  },
+  ['<C-y>'] = {
+    desc = 'take the echo the ghost is showing — the line becomes it',
+    run = function()
+      take() -- nothing to take: the key does nothing (no built-in job worth keeping)
+    end,
+  },
+  ['<M-l>'] = {
+    desc = 'take the echo the ghost is showing — the line becomes it',
+    run = function()
+      take()
     end,
   },
 }
