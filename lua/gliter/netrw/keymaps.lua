@@ -64,6 +64,12 @@ local CUSTOM_DROP = {
 local function attach_custom(buf, km)
   local ops = require('gliter.netrw.ops')
   local function nmap(lhs, fn, desc)
+    -- The preview key can carry netrw's own preview, relocated onto it by
+    -- mapset() (see `relocate`): a map that mapset() installed is stored
+    -- under the key's raw bytes, and a later keymap.set() on the same key
+    -- does not replace it — the two live side by side and the raw one wins
+    -- the keypress. Deleting the raw form first leaves one map, ours.
+    pcall(vim.api.nvim_buf_del_keymap, buf, 'n', vim.keycode(lhs))
     vim.keymap.set('n', lhs, fn, {
       buffer = buf,
       silent = true,
@@ -71,16 +77,29 @@ local function attach_custom(buf, km)
       desc = 'gliter.netrw: ' .. desc,
     })
   end
+  -- A mouse click that runs a mapping does not move the cursor by itself
+  -- (the mapping swallowed the key), so the click's position is read and
+  -- the cursor put there first — the entry under the CLICK is the one
+  -- that opens, the way netrw's own mouse keys behave.
+  local function click(open)
+    return function()
+      local ok, pos = pcall(vim.fn.getmousepos)
+      if ok and type(pos) == 'table' and pos.winid ~= 0 and pos.line > 0 then
+        pcall(vim.api.nvim_win_set_cursor, pos.winid, { pos.line, math.max(0, pos.column - 1) })
+      end
+      open()
+    end
+  end
   nmap('<CR>', function()
     ops.open('edit')
   end, 'open the entry under the cursor')
-  nmap('<2-LeftMouse>', function()
+  nmap('<2-LeftMouse>', click(function()
     ops.open('edit')
-  end, 'open the entry under the cursor')
-  nmap('<LeftMouse>', function()
+  end), 'open the entry under the cursor')
+  nmap('<LeftMouse>', click(function()
     ops.open('edit')
-  end, 'open the entry under the cursor')
-  nmap('<MiddleMouse>', ops.open_prevwin, 'open the entry under the cursor in the previous window')
+  end), 'open the entry under the cursor')
+  nmap('<MiddleMouse>', click(ops.open_prevwin), 'open the entry under the cursor in the previous window')
   nmap('o', function()
     ops.open('split')
   end, 'open the entry under the cursor in a split')
