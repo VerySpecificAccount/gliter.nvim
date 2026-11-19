@@ -78,9 +78,13 @@ require('gliter').setup {
       execute = 'X',             -- toggle the executable bit (Visual
                                  -- mode too: on the selection)
       symlink = 'S',             -- symlink marked into a directory
-      shell = '!',               -- run a shell command on the marks
+      shell = '!',               -- run a shell command on the marks, in a
+                                 -- terminal window (interactive commands
+                                 -- included)
       run_each = 'x',            -- shell command one entry at a time;
                                  -- %x / *x mark entries for it
+      file = 'F',                -- the file report on the entry under
+                                 -- the cursor, in a floating window
       mkdir = '+',               -- create a file, or a directory ending in /
       cd = '<C-g>',              -- :cd to the listed directory
       -- bookmarks
@@ -122,6 +126,9 @@ require('gliter').setup {
     },
     edit = { confirm = true },   -- ask before applying edits with :w
     notify_level = vim.log.levels.INFO,
+    listing = nil,               -- a shell command whose output replaces
+                                 -- the listing: 'ls -ltrhF', 'ls -d */',
+                                 -- ... — nil keeps netrw's own listings
     native_unmap = { 'gR', '+', '%' }, -- netrw keys removed in netrw buffers
   },
   undotree = {
@@ -595,7 +602,7 @@ and full documentation in `doc/gliter.<name>.md`.
 
 | Module | Needs | Adds | Stolen from |
 | ------ | ----- | ---- | ----------- |
-| [`gliter.netrw`](#gliternetrw) | Neovim 0.12+ | marks, bookmarks, one-key commands, regexp marking with a live highlight and in-place editing for the built-in netrw | dired (1986) + wdired |
+| [`gliter.netrw`](#gliternetrw) | Neovim 0.12+ | marks, bookmarks, one-key commands, regexp marking with a live highlight, in-place editing and a custom listing style (`ls -ltrhF`, `ls -d */`) for the built-in netrw | dired (1986) + wdired |
 | [`gliter.undotree`](#gliterundotree) | Neovim 0.12+ | a `<Leader>u` toggle, colors and a bottom diff window for the built-in `:Undotree` | undo-tree (2009) |
 | [`gliter.multicursor`](#glitermulticursor) | Neovim 0.13+ | keys for the built-in multicursors: `<M-i>` puts one on every line of the selection, `<Leader>cj`/`<Leader>ck` place one and step, `<M-a>` on every occurrence, `<C-n>`/`<C-p>` walk them, `<C-s>`/`<C-m>` skip, `<C-b>`/`<C-f>` remove one | multiple-cursors (2012) |
 | [`gliter.treesitterRE`](#glitertreesitterre) | Neovim 0.9+ | expand-region: one key grows the selection up a semantic ladder (parser optional) | expand-region (2011) |
@@ -609,7 +616,7 @@ and full documentation in `doc/gliter.<name>.md`.
 | [`gliter.matchit`](#glitermatchit) | Neovim 0.9+ | `M` (the key you gave `%`) jumps between the words that bracket a block — `if`/`end`, `function`/`endfunction`, `<div>`/`</div>` — nesting counted; `gM` the other way; plain `%` on everything else | matchit.vim (1996) |
 | [`gliter.tohtml`](#glitertohtml) | Neovim 0.10+ | `:GliterTohtml`: the buffer (or the selection) out as HTML with its syntax colors, as Markdown, or as PDF typeset by groff | 2html.vim (2001) + htmlize.el (1997) + troff (1973) |
 | [`gliter.w3`](#gliterw3) | Neovim 0.10+ | the web in a buffer: `:GliterW3 <url>` — curl fetches and pandoc renders the page (lynx without pandoc, w3m with the links taken out of the html, wls lists the site); links followable from the keyboard while a spinner covers the load, `]l`/`[l` walk them, `gl` quickfixes them, `H` goes back, `R` reloads, keywords search DuckDuckGo | W3 (1993) → eww (2013) → viww (2026) |
-| [`gliter.cmd`](#glitercmd) | Neovim 0.10+ | readline's keys on the built-in command line — C-a/C-b/C-f/C-d/C-k/C-t, M-b/M-f, M-BS/M-d, each editing the line the way `setcmdline()` allows; Tab/S-Tab untouched, the wildmenu keeps its own keys (C-e reverts it, Right walks it, the edit keys sleep while it is up) — and fish's ghost: the history's continuation dimmed after the line (`:w` with ` file` after it — Enter runs `:w` alone, `C-n` or `C-f`/`C-e`/`Right` at the end takes the echo, `C-p` cycles the echoes, one older at a time); input()'s prompts — netrw's `%`, w3's address — get the same ride, their answers in the `@` history | readline (1988) + fish (2005) |
+| [`gliter.cmd`](#glitercmd) | Neovim 0.10+ | readline's keys on the built-in command line — C-a/C-b/C-f/C-d/C-k/C-t, M-b/M-f, M-BS/M-d, each editing the line the way `setcmdline()` allows; Tab/S-Tab untouched, the wildmenu keeps its own keys (C-e reverts it, Right walks it, C-y accepts, the edit keys sleep while it is up) — and fish's ghost: the history's continuation dimmed after the line (`:w` with ` file` after it — Enter runs `:w` alone; `C-p` cycles the echoes one older at a time, `C-n` cycles back and takes the newest, `C-y`/`M-l` take whichever echo is showing); input()'s prompts — netrw's `%`, w3's address — get the same ride, their answers in the `@` history | readline (1988) + fish (2005) |
 | [`gliter.which`](#gliterwhich) | Neovim 0.10+ | a light which-key: pause after a prefix (`<Leader>`, `g`, `z`, ...) and a popup lists the mappings that continue it, straight out of `:map` | guide-key (2012) → which-key.el (2015) → which-key.nvim (2021) |
 | [`gliter.screenkey`](#gliterscreenkey) | Neovim 0.9+ | shows the keys you press as you press them — a float for screencasts and demos | echo-keystrokes / view-lossage (1980s) → showkey.el (2015) → screenkey.nvim (2024) |
 | ~~[`gliter.pack`](doc/gliter.pack.md)~~ | Neovim 0.10+ | **deprecated** — use [store.nvim](https://github.com/alex-popov-tech/store.nvim) instead | package.el + MELPA (2007/2012) |
@@ -874,14 +881,21 @@ gliter stands on the shoulders of:
 ## gliter.netrw
 
 Marks, bookmarks, one-key commands, regexp marking with a live
-highlight, and in-place editing for the built-in netrw (Neovim 0.12+). The
+highlight, in-place editing and a custom listing style for the built-in
+netrw (Neovim 0.12+). The
 marks are shared across every netrw buffer, window and tab page: `y`/`m`/`d`/`z`
 toggle copy, move, delete and archive marks, `Y`/`M`/`gD`/`Z` mark every entry,
 `p` applies them, `<C-b>1..9` bookmarks the directory and `<C-1>..<C-9>` jumps
 to it, `%<mark>` marks by regexp, the `*` families mark by extension,
 directory, symlink or executable bit, and `E` turns the listing into an
 editable buffer — add, remove and rename by editing the text, apply with
-`:w`. It does not replace netrw.
+`:w`. `!` runs a shell command on the marked entries in a terminal window
+(interactive commands — sudo's password — included), `x` runs it one entry
+at a time, and `F` shows the `file` command's report on the entry under the
+cursor in a floating window. `setup { listing = 'ls -ltrhF' }` replaces the
+listing netrw draws with any shell command's output — `ls -d */` for
+directories only — with every feature still reading it. It does not replace
+netrw.
 
 Full documentation: [doc/gliter.netrw.md](doc/gliter.netrw.md).
 
@@ -1035,8 +1049,10 @@ top of it (Neovim 0.10+): `C-a`/`C-b`/`C-f`/`C-d`/`C-k`/`C-t`, `M-b`/`M-f`,
 `M-BS`/`M-d` — each editing the line the way `setcmdline()` allows — while
 Tab/S-Tab and the wildmenu keep their own keys (the edit keys sleep while the
 wildmenu is up). The history's continuation is dimmed after the line, fish's
-autosuggestion: Enter runs the line alone, `C-n` takes the echo, `C-p` cycles
-the echoes. `input()`'s prompts — netrw's `%`, w3's address — get the same
+autosuggestion: Enter runs the line alone, `C-p` cycles the echoes one older
+at a time, `C-n` cycles them back and at the newest takes the ghost, and
+`C-y`/`M-l` take whichever echo is showing. `input()`'s prompts — netrw's
+`%`, w3's address — get the same
 ride.
 
 Full documentation: [doc/gliter.cmd.md](doc/gliter.cmd.md).
