@@ -12,8 +12,9 @@
 ---                 directories are skipped
 ---   S  symlink    marked entries (or the entry under the cursor) into a directory
 ---   !  shell      run a shell command once on the `!`-marked entries (or the entry
----                 under the cursor); `*` in the command stands for the files,
----                 otherwise they are appended
+---                 under the cursor), in a terminal window — interactive
+---                 commands (sudo's password) included; `*` in the command
+---                 stands for the files, otherwise they are appended
 ---   x  shell      the same command run one entry at a time: it runs on the first marked
 ---                 entry in a terminal, and the next entry starts only when that command
 ---                 exits; close the terminal to stop the rest of the queue
@@ -44,6 +45,17 @@ local ui = require('gliter.netrw.ui')
 local M = {}
 
 local WARN, ERROR = vim.log.levels.WARN, vim.log.levels.ERROR
+
+--- The entry under the cursor, with the usual message when there is none.
+---@param ctx GliterNetrwCtx
+---@return GliterNetrwEntry?
+local function at_cursor(ctx)
+  local e = netrw.entry_at_cursor(ctx)
+  if not e then
+    ui.notify('No file or directory here.', WARN)
+  end
+  return e
+end
 
 ---@return GliterNetrwCtx?
 local function context()
@@ -427,6 +439,153 @@ function M.cd_here()
 end
 
 ---------------------------------------------------------------------------
+-- opening entries from a custom listing (see custom.lua): netrw's own
+-- <CR>/o/v/t/P/mouse/preview keys cannot read the custom text, so the
+-- parser reads the entry and these open it.
+---------------------------------------------------------------------------
+
+--- <CR>/o/v/t on a custom listing: open the entry under the cursor — a
+--- directory is browsed, a file edited — with `how` ('edit', 'split',
+--- 'vsplit', 'tabedit'), the way netrw's own keys do on its listings.
+---@param how 'edit'|'split'|'vsplit'|'tabedit'
+function M.open(how)
+  local ctx = context()
+  if not ctx then
+    return
+  end
+  local e = at_cursor(ctx)
+  if not e then
+    return
+  end
+  local ok, err = pcall(vim.cmd, how .. ' ' .. vim.fn.fnameescape(e.path))
+  if not ok then
+    ui.notify(err, ERROR)
+  end
+end
+
+--- P (and the middle mouse) on a custom listing: open the entry under the
+--- cursor in the previous window — the one the netrw window was entered
+--- from. With no previous window (or when it is this one), a split is
+--- opened instead; a directory is browsed in that window.
+function M.open_prevwin()
+  local ctx = context()
+  if not ctx then
+    return
+  end
+  local e = at_cursor(ctx)
+  if not e then
+    return
+  end
+  local prev = vim.fn.win_getid(vim.fn.winnr('#'))
+  if not prev or prev == 0 or prev == ctx.win or not vim.api.nvim_win_is_valid(prev) then
+    return M.open('split')
+  end
+  local ok, err = pcall(vim.api.nvim_win_call, prev, function()
+    vim.cmd('edit ' .. vim.fn.fnameescape(e.path))
+  end)
+  if not ok then
+    ui.notify(err, ERROR)
+  end
+end
+
+--- The preview key on a custom listing (netrw's own `p`, relocated when
+--- `paste` is `p`): preview the entry under the cursor in the preview
+--- window — a file with :pedit, a directory as its listing.
+function M.preview()
+  local ctx = context()
+  if not ctx then
+    return
+  end
+  local e = at_cursor(ctx)
+  if not e then
+    return
+  end
+  pcall(vim.cmd, 'pclose')
+  local ok, err = pcall(vim.cmd, 'pedit ' .. vim.fn.fnameescape(e.path))
+  if not ok then
+    ui.notify(err, ERROR)
+  end
+end
+
+---------------------------------------------------------------------------
+-- F: the file(1) report on the entry under the cursor
+---------------------------------------------------------------------------
+
+--- The float F's report lives in; q, <Esc> or <CR> closes it.
+local file_win = nil ---@type integer?
+
+local function file_close()
+  if file_win and vim.api.nvim_win_is_valid(file_win) then
+    pcall(vim.api.nvim_win_close, file_win, true)
+  end
+  file_win = nil
+end
+
+--- F: run the file command on the entry under the cursor and show its
+--- report in a floating window — what the thing is, and the details file
+--- has to tell about it (the magic behind the name, the mime type). On a
+--- custom listing `qf` — netrw's own file-info key, which cannot read the
+--- custom text — does the same.
+function M.file()
+  local ctx = context()
+  if not ctx then
+    return
+  end
+  local e = at_cursor(ctx)
+  if not e then
+    return
+  end
+  local ok, res = pcall(function()
+    return vim.system({ 'file', '--', e.path }, { text = true }):wait()
+  end)
+  if not ok then
+    return ui.notify('The file command is not available here.', ERROR)
+  end
+  local out = vim.trim((res.stdout or '') .. (res.stderr or ''))
+  if out == '' then
+    out = res.code == 0 and (e.path .. ': (no report)') or (e.path .. ': file exited with ' .. res.code)
+  end
+  local lines = vim.split(out, '\n', { plain = true })
+
+  file_close()
+  local width = 1
+  for _, l in ipairs(lines) do
+    width = math.max(width, vim.fn.strdisplaywidth(l))
+  end
+  width = math.min(width + 2, math.max(24, vim.o.columns - 6))
+  local height = math.max(1, math.min(#lines, math.floor(vim.o.lines * 0.6)))
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].swapfile = false
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  local okwin, win = pcall(vim.api.nvim_open_win, buf, true, {
+    relative = 'editor',
+    width = width,
+    height = height,
+    row = math.max(0, math.floor((vim.o.lines - height) / 2)),
+    col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+    border = 'rounded',
+    title = ' file ',
+    title_pos = 'center',
+    style = 'minimal',
+    zindex = 300,
+  })
+  if not okwin then
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    return ui.notify('Cannot open a floating window for the report.', ERROR)
+  end
+  file_win = win
+  for _, k in ipairs({ 'q', '<Esc>', '<CR>' }) do
+    vim.keymap.set('n', k, file_close, {
+      buffer = buf,
+      silent = true,
+      desc = 'gliter.netrw: close the file report',
+    })
+  end
+end
+
+---------------------------------------------------------------------------
 -- shell commands: `!` runs the command once on everything, `x` one entry at a time
 ---------------------------------------------------------------------------
 
@@ -473,12 +632,25 @@ end
 --- The last command typed for `!` or `x`; both prompts offer it as the default.
 local last_cmd = nil
 
+--- State of a running `!` command: its terminal window, and whether the
+--- command is still running (the window stays after it exits — its output
+--- is there to read; close it, or run another `!`, when done with it).
+local bang = nil ---@type { win: integer, running: boolean }?
+
 --- !: run a shell command once on every `!`-marked entry; with none so marked, on any
---- marked entries; with nothing marked, on the entry under the cursor.
+--- marked entries; with nothing marked, on the entry under the cursor. The
+--- command runs in a terminal window — a bottom split, like `x`'s — so
+--- interactive commands work: sudo's password prompt, read, less. `*` in
+--- the command stands for the files, otherwise they are appended. The
+--- window stays up when the command is done; the listing refreshes when
+--- the command exits.
 function M.shell()
   local ctx = context()
   if not ctx then
     return
+  end
+  if bang and bang.running and vim.api.nvim_win_is_valid(bang.win) then
+    return ui.notify('A ! command is still running; close its terminal to stop it.', WARN)
   end
   local paths = shell_paths(ctx)
   if #paths == 0 then
@@ -490,17 +662,59 @@ function M.shell()
   end
   last_cmd = cmd
   local full = build_cmd(cmd, ctx.root, paths)
-  vim.system({ vim.o.shell, vim.o.shellcmdflag, full }, { cwd = ctx.root, text = true }, function(r)
-    vim.schedule(function()
-      local out = vim.trim((r.stdout or '') .. (r.stderr or ''))
-      if out ~= '' then
-        ui.notify(out, r.code == 0 and vim.log.levels.INFO or ERROR)
-      elseif r.code ~= 0 then
-        ui.notify(('Command exited with %d.'):format(r.code), ERROR)
+  -- the window it runs in: a finished ! terminal is reused (its buffer is
+  -- wiped by this very reuse) — unless the window was since given
+  -- something else to show — else a new bottom split is opened
+  local win
+  if bang and vim.api.nvim_win_is_valid(bang.win) then
+    local old = vim.api.nvim_win_get_buf(bang.win)
+    if vim.bo[old].buftype == 'terminal' then
+      win = bang.win
+    end
+  end
+  if not win then
+    local height = math.max(4, math.min(12, math.floor(vim.o.lines * 0.4)))
+    if not pcall(vim.cmd, 'botright ' .. height .. 'split') then
+      return ui.notify('Not enough room for a terminal window; make the netrw window taller.', ERROR)
+    end
+    win = vim.api.nvim_get_current_win()
+  end
+  local root = ctx.root
+  bang = { win = win, running = true }
+  -- focus the terminal before starting the job: an interactive command
+  -- reads from the keyboard right away (startinsert puts the line through
+  -- to the terminal itself)
+  pcall(vim.api.nvim_set_current_win, win)
+  vim.api.nvim_win_call(win, function()
+    local oknew = pcall(vim.cmd, 'enew')
+    if not oknew then
+      if bang and bang.win == win then
+        bang = nil
       end
-      netrw.refresh_dirs({ ctx.root }, nil)
-    end)
+      return ui.notify('Cannot make room for the command\'s terminal.', ERROR)
+    end
+    local ok = pcall(vim.fn.termopen, { vim.o.shell, vim.o.shellcmdflag, full }, {
+      cwd = root,
+      on_exit = function()
+        vim.schedule(function()
+          if bang and bang.win == win then
+            bang.running = false
+          end
+          netrw.refresh_dirs({ root }, nil)
+        end)
+      end,
+    })
+    if not ok then
+      if bang and bang.win == win then
+        bang = nil
+      end
+      return ui.notify('Cannot open a terminal for the command.', ERROR)
+    end
+    -- wiping on hide keeps the buffer count down; closing the window kills
+    -- the job and the state above lets the next ! open a fresh one
+    vim.bo.bufhidden = 'wipe'
   end)
+  pcall(vim.cmd, 'startinsert')
 end
 
 --- State of a running `x` chain: the queue of entries, the command, and the terminal
