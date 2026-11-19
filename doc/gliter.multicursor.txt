@@ -1,310 +1,424 @@
-*gliter.multicursor.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 19
+# gliter.netrw
 
-==============================================================================
-Table of Contents                       *gliter.multicursor-table-of-contents*
+Enhances Neovim's built-in netrw (0.12+) with entry marks that are shared across
+every netrw buffer, window and tab page, one-key commands that act on them,
+nine numbered bookmarks that survive restarts, marking by regexp with a live
+highlight, in-place editing of the listing itself: add,
+remove and rename files and directories by editing the buffer text, and a
+custom listing style — any shell command's output (`ls -ltrhF`, `ls -d */`)
+replacing the listing netrw draws. It does
+not replace netrw.
 
-1. gliter.multicursor                  |gliter.multicursor-gliter.multicursor|
-  - Where it comes from|gliter.multicursor-gliter.multicursor-where-it-comes-from|
-  - Defaults                  |gliter.multicursor-gliter.multicursor-defaults|
-  - Before and after  |gliter.multicursor-gliter.multicursor-before-and-after|
-  - q= and 'follow'    |gliter.multicursor-gliter.multicursor-q=-and-'follow'|
+> **Neovim 0.13+ note.** Neovim is growing a new built-in directory browser
+> (`nvim.dir`, filetype `directory`) that replaces netrw when it is finished;
+> this module rides on classic netrw and stays out of the way when `nvim.dir`
+> has taken the buffer. To keep using netrw — and this module with it — set
+> `let g:loaded_nvim_dir_plugin = 1` (init.vim) or
+> `vim.g.loaded_nvim_dir_plugin = 1` (init.lua, early) before startup.
 
-==============================================================================
-1. gliter.multicursor                  *gliter.multicursor-gliter.multicursor*
+## Stolen from Emacs
 
-Keys for the built-in multicursors (Neovim 0.13+). `setup()` maps a named
-`keys` table — every name to its key, any name to `false` to unmap it; the
-README’s default setup and the table below hold the whole layout:
+The keys below are stolen from Emacs. The marks are dired's marks, the one-key
+commands are dired's commands, editing the listing in place is wdired —
+also an Emacs thing — and the bookmarks are Emacs registers with the
+two-key prefix amputated: `C-x r SPC` and `C-x r j` there, one `C-<digit>`
+here. dired has done it this way since 1986, five years
+before Vim existed; wdired since the early 2000s, twenty years before
+[oil.nvim](https://github.com/stevearc/oil.nvim) (2022) built a whole
+plugin around the same trick. This was inevitable: every
+Neovim plugin ends up at Emacs eventually, and the only real choice is
+whether it takes the direct flight. gliter.netrw skips the usual decade
+of insisting it is not an Emacs clone and just ships the Emacs part. If
+you have used dired, your hands already know everything on this page.
 
->lua
-    require("gliter").setup {
-      multicursor = {
-        keys = {
-          insert = "<M-i>",     -- any name: a new key, or false to unmap it
-          below  = false,       -- the names you leave out keep their defaults
-        },
-        extra_keys = {         -- raw rows on top, vim.keymap.set() order:
-          { "n", "<M-i>f",     -- flash.nvim: jump, then a cursor there.
-                              -- A row like this makes <M-i> a prefix of
-                              -- your own — and hands it back the
-                              -- 'timeoutlen' beat, so use it sparingly
-            function()
-              require("flash").jump()
-              vim.api.nvim_feedkeys("Q", "n", false) -- Q adds a cursor at the cursor position
-            end },
-          { "n", "<Tab>",      -- <Tab>: while a search is on, clear its
-            function()         -- highlighting; otherwise clear all the
-              if vim.v.hlsearch == 1 then     -- multicursors
-                vim.cmd("nohlsearch | redraw!")
-              else
-                vim.api.nvim_buf_clear_namespace(
-                  0, vim.api.nvim_create_namespace("nvim.multicursor"), 0, -1)
-              end
-            end,
-            { noremap = true, desc = "Clear search highlighting / all multicursors" } },
-        },
+## Install
+
+`gliter.netrw` is a module of gliter (one repository, one runtime path),
+and modules are opt-in — gliter's `setup()` only sets up the modules you
+name in it:
+
+    { 'you/gliter', opts = { netrw = { star_kind = 'copy' } } }
+
+or, without a plugin manager, set the module up straight from your
+init.lua:
+
+    require('gliter.netrw').setup { star_kind = 'copy' }
+
+**netrw and Neovim 0.13.** 0.13 stops loading netrw by default — `:edit
+some/directory` opens the new built-in `dir` plugin (`dir.lua`, new in
+0.13) instead — and netrw became a legacy plugin that `:packadd netrw`
+turns back on. On 0.13, put `vim.cmd('packadd netrw')` in your init.lua
+before gliter. Below 0.13 netrw still loads by itself (a shim in `runtime/plugin/netrwPlugin.vim`
+does the `:packadd` at startup), so users of < 0.13 don't need the line —
+but might want `:packadd netrw` in their init.lua anyway: it is harmless
+there, and it is already in place for the day 0.13 arrives.
+
+Every key on this page is changeable — or switchable off with `false` — through
+the `keys` table of `setup()`; see [Keys](#keys). The `%` and `*`
+sequences are built from the same table, so remapping a mark key remaps its
+sequences with it.
+
+## Marks
+
+| Key | Action |
+|-----|--------|
+| `y` | toggle a **copy** mark on the entry under the cursor (Visual: each selected line) |
+| `m` | toggle a **move** mark on the entry under the cursor (Visual: each selected line) |
+| `d` | toggle a **delete** mark on the entry under the cursor (Visual: each selected line) |
+| `z` | toggle an **archive** mark on the entry under the cursor (Visual: each selected line) |
+| `Y` `M` `gD` `Z` | mark **every** entry for copy / move / delete / archive (press again to unmark all) |
+| `p` | apply the marks (see below) |
+| `<Esc>` | clear all marks |
+
+Marks are single-key actions: `y`, `m`, `d` and `z` act at once, with no second
+key to type. Because of that, keys that start with a mark letter cannot be
+reached in netrw buffers: netrw's `m`-prefixed keys (`mf`, `mt`, ...), and Vim's
+`ZZ`/`ZQ` under the default `Z`. Marks are shared across every netrw window and
+tab page — until a window switches to another directory: the marks are
+forgotten then (they belong to the listing you set them on; a refresh, sort or
+style change of the same directory keeps them). Marking an entry again with
+the same key unmarks it; marking it with
+another key changes its kind. After a single-entry toggle the cursor moves down
+one line, like fff.nvim. Marked lines are highlighted — copy, move, delete,
+shell, archive and run use different colors — and show a `[copy]`, `[move]`,
+`[delete]`, `[shell]` or `[archive]` tag. Marks for entries that were applied
+successfully are cleared.
+
+## Applying the marks with `p`
+
+- **copy / move marks** are pasted into the current directory (in tree style:
+  into the directory under the cursor). When a pasted entry already exists you
+  are asked what to do, unless `conflict` says otherwise.
+- **delete marks** are confirmed first — a `y`/`n` prompt listing what would go
+  — and deleted when you answer `y`. Answering `n` aborts the whole paste and
+  keeps the marks.
+- **archive marks** are confirmed with a prompt, in two halves: entries that are
+  themselves netrw-browsable archives (`.tar`, `.tar.gz`, `.tgz`, `.zip`, ...)
+  are **extracted** into a directory you type — Enter keeps the directory netrw
+  is listing here, and the directory is created if it does not exist; every
+  other entry is **packed** into a new archive whose name you type, and the
+  extension of that name picks the format: `.tar`, `.tar.gz`/`.tgz`,
+  `.tar.bz2`/`.tbz2`, `.tar.xz`/`.txz`, `.tar.zst`/`.tzst`, `.zip`. A mix of
+  both does both, one prompt each (extraction first). Extraction overwrites
+  existing files (tar's default; `unzip -o`); packing refuses to overwrite an
+  existing archive. Entries that were extracted or packed successfully lose
+  their mark.
+- **shell and run marks** are left alone: `p` does not run shell commands —
+  `!` and `x` do. With nothing but shell/run marks marked, `p` says so and
+  does nothing.
+
+## Commands
+
+Each command acts on the marked entries of its kind, or on the entry under the
+cursor when nothing of that kind is marked.
+
+| Key | Action |
+|-----|--------|
+| `C` | **copy** copy-marked entries to a directory you type (Tab completes) |
+| `R` | **rename/move** move-marked entries to a typed directory; a single entry can be given a new path instead |
+| `D` | **delete** delete-marked entries now, after confirmation |
+| `X` | **chmod**: toggle the executable bit on every marked entry (any kind), or the one under the cursor, or — from Visual mode — each entry of the selection; files only, directories are skipped |
+| `S` | **symlink** marked entries into a typed directory |
+| `!` | run a **shell command** once on the `!`-marked entries; with none of those, on any marked entries, else on the entry under the cursor. `*` in the command stands for the files, otherwise they are appended. The command runs in a terminal window — a bottom split, like `x`'s — so interactive commands work (sudo's password prompt, `read`, `less`); the window stays up with the output when the command is done, and the listing refreshes when it exits |
+| `x` | run the command **one entry at a time**: the `x`-marked entries, else the same selection as `!` (its previous command is the default), but each entry runs alone in a terminal, the next one only when the previous command exits. `*` stands for the entry being run; close the terminal to stop the queue |
+| `F` | **file report**: run the `file` command on the entry under the cursor and show its report in a floating window — what the thing is, and the details `file` has to tell about it (the magic behind the name, the mime type). `q`, `<Esc>` or `<CR>` closes the float; on a custom listing `qf` — netrw's own file-info key, which cannot read the custom text — does the same |
+| `+` | **create** a file, or a directory when the name ends in `/` (parents included) |
+| `<C-g>` | **cd**: make the directory listed here the current working directory (a global `:cd`; netrw's own `c` is a window-local `:lcd`) |
+
+Inside netrw buffers these take over netrw's own bindings for the same letters
+(`C`, `R`, `D`, `S`, `x`, and `%` — removed so the `%<mark>` sequences can
+exist, see `native_unmap`); netrw's own `p` (preview) moves to `preview` when
+`paste` is `p`.
+
+There is no single-key shell mark (`!` itself runs the command). To mark entries
+for `!`, use `%!` with a pattern, or the `*` family with `!` as the kind letter
+(for instance `*!*` marks every executable for shell); for `x`, the same with
+`x` — `%x` and `*x.`. Shell marks show as `[shell]` and are only consumed by
+`!`; run marks show as `[run]` and are what `x` prefers. `p` ignores both.
+
+## Marking many entries at once
+
+| Key | Action |
+|-----|--------|
+| `%y` `%m` `%d` `%z` `%!` `%x` | mark by **regexp** (copy / move / delete / archive / shell / one-at-a-time run), matched against the name as the listing shows it — with the matches highlighted live while you type |
+| `*.` `*/` `*@` `**` | mark by extension / directories / symlinks / executables, with the default kind (initially `star_kind`) |
+| `*y.` `*y/` `*y@` `*y*` | same families, but as **copy** — and copy becomes the default kind |
+| `*m/` `*d@` `*z*` `*!*` `*x.` ... | the same for **move** / **delete** / **archive** / **shell** / **run**: `*<kind><family>` picks the kind for that press and makes it the default |
+
+The `*` family marks many entries at once: `*.` asks for an extension, `*/`
+takes every directory, `*@` every symlink, `**` every executable. A mark key
+between the `*` and the family does it in one sequence and re-binds the default:
+`*y.` marks everything with that extension for copy (and copy is what plain
+`*.` does from then on), `*m/` marks every directory for move, `*d@` every
+symlink for delete, `*z*` every executable for archive. The default is
+`star_kind` until one of these changes it.
+
+The `%<mark>` regexp is a Vim regexp compiled the way a `/` search in the
+listing would compile it, and it is matched against the text the listing
+actually shows — `dir/` with its trailing slash, `link@`, `file*` — so a
+pattern that finds something with a search finds it here too: `.\+\/` marks
+exactly the directories, and nothing else. While you type, the matches are
+highlighted live (in Search colors) and the prompt counts them, at the right
+end of the line; Enter applies the mark, Esc leaves everything alone. The
+prompt itself is the command line `input()` gives — [gliter.cmd](gliter.cmd.md)
+lays its readline keys and the ghost of the answers before on it when it is
+set up, `Up`/`Down` walk the `@` history — Enter applies and Esc cancels.
+
+The letter after `%` and between `*` and the family is the mark key itself, not
+a fixed letter: if you remap `yank` to `c`, the sequences become `%c` and `*c.`,
+and `z` stays `%z` / `*z.`.
+
+## Bookmarks
+
+| Key | Action |
+|-----|--------|
+| `<C-1>` .. `<C-9>` | jump to bookmark 1..9; an unset slot is pointed at this directory first |
+| `<C-b>1` .. `<C-b>9` | point bookmark 1..9 at this directory (overwrites) |
+| `<C-b>0` | clear all nine bookmarks |
+| `<C-b>l` | list the bookmarks |
+
+Nine numbered directories, one key each. "This directory" is the one the
+listing acts on — the directory under the cursor in tree style, the listed
+directory otherwise — the same target `+` and `p` use. The slots survive
+restarts: they live in `stdpath('data')/gliter/netrw-bookmarks.json`.
+`:GliterNetrwBookmarks` lists them from anywhere. Jumping to a bookmark
+whose directory has been removed says so and leaves the slot alone.
+
+A slot jumps on the second press, never the first: pressing `<C-3>` with
+slot 3 empty points it here, so a fresh slot is planted exactly where you
+are standing — and pressing it again right away stays there (a bookmark
+pointing at the directory you are in is a no-op). `<C-b>3` is the explicit
+form — it re-points a slot that is already set. The jump is a plain
+`:edit <dir>` — the canonical way to open a directory, reusing whatever
+buffer already carries its name — and gliter attaches its keys and
+decorations to the buffer it lands on, so it is a gliter.netrw buffer like
+any other: same keys, same marks, same decoration.
+
+## The custom listing (`listing`)
+
+`setup { listing = 'ls -ltrhF' }` replaces the listing netrw draws with
+the output of a shell command of your choosing — run in the listed
+directory, through your `shell`, its stdout becoming the listing:
+
+    require('gliter.netrw').setup {
+      listing = 'ls -ltrhF',     -- newest last, with the details
+      -- listing = 'ls -d */',  -- directories only
+      -- listing = 'ls -la --group-directories-first',
+      -- listing = 'exa --git --icons',   -- anything that prints names
+    }
+
+The banner above the listing stays netrw's own — the directory's name, the
+quick help, `I`'s toggling — so the buffer still says where it is. The
+command runs whenever netrw lists: on opening a directory, on every re-list
+(`i`, `s`, `r`, `<C-l>`, a focus change, the refresh after a gliter
+operation). A failed command falls back to netrw's own listing with a
+notice — a typo'd flag never blanks the buffer — and is retried on the next
+re-list.
+
+Everything keeps working on the custom text, because the parser (not
+netrw's line-reading) finds the entries: marks and their highlights, the
+one-key commands, the `/` search, `%` regexp marking, the `*` families,
+edit mode — and the entry under the cursor is the one the click or the
+cursor column is on, in long listings too. The formats the parser reads:
+`ls`'s classify suffixes (`dir/`, `link@`, `file*`, `fifo|`, `socket=`),
+the comma stream of `-m`, the columns of `-C`/`-x`, the long format of
+`-l` (with or without `-h`, `--si`, `-a`, `-t` and friends), and plain
+one-per-line — plus a symlink's ` -> target` tail, which reads as the
+link.
+
+netrw's own keys that take the entry off the line cannot read the custom
+text — `ls -l`'s columns are not a file name — so on a custom-listing
+buffer they are replaced by parser-driven versions (`<CR>`, `o`, `v`, `t`,
+`P`, the mouse keys, the preview key open or preview what the parser
+found; `qf` shows the `F` float) or removed (`mf` and netrw's other
+line-reading keys, which would act on the metadata as if it were a name).
+netrw re-installs them with its next re-list of a plain style. And because
+the custom text is flat, the window's style is pinned to thin: `i` re-lists,
+and the custom listing comes back — the styles are the `listing` option's to
+replace, so with one set, `i` has no visible effect (`I`'s banner toggle is
+netrw's own and still works).
+
+With `listing` unset (the default) netrw's own listings and styles are
+untouched, and none of the above applies.
+
+## Editing the listing in place (`E`)
+
+`E` turns the listing buffer itself into an ordinary editable buffer (no popup,
+no new window):
+
+- Add a line to create a file; end it with `/` to create a directory. Nested
+  paths (`sub/dir/file.txt`) create their parent directories.
+- Delete a line (or clear its text) to delete that file or directory.
+- Edit a name in place to rename it.
+- Any normal Vim editing works: `:%s`, `<C-v>` block edits, `g<C-a>`, replaying
+  macros with `@`... (recording a new macro is not possible: the cancel key —
+  `q` by default — is taken by edit mode, see below).
+- `:w` applies the changes to disk (asks to confirm first unless
+  `edit.confirm = false`). Confirmations are answered with Enter (yes) or
+  Backspace (no).
+- `q` cancels: it leaves edit mode and discards the edits, asking first when
+  there are unsaved changes. Pressing `E` again does the same.
+
+Inside edit mode `p` adds the copy- and move-marked entries as new lines below
+the cursor; they are copied or moved when the listing is saved with `:w`. A
+copy whose name is already taken becomes `file_copy`; pasting the same entry
+again takes the next free name — `file_copy_2`, `file_copy_3`, ... — so a
+second `y` + `p` is a second copy.
+Pasting consumes the marks — the sources lose their `[copy]`/`[move]` tag
+and the new lines carry `[copied]`/`[moved]` instead — and directories keep
+their trailing `/` on the pasted line, so the pending entry reads as the
+directory it is. Pressing the mark key on a pending line cancels it (the
+line is removed; re-mark to paste it somewhere else). `y` also marks the
+entry on the cursor line while editing, `Y` marks every entry, and `<Esc>`
+clears the marks. A confirmed `:w` clears *all* marks, not just the ones it
+executed — the listing on disk is the truth now. The other mark keys keep
+Vim's meaning while editing — `d` stays delete, so `dd` is how a line is
+removed.
+
+One directory per edit session. Tree-style listings switch to thin style while
+editing; the banner is hidden while editing and restored afterwards. netrw's
+own auto-refresh — which fires on `BufEnter` and on `FocusGained` (switching
+the terminal window away and back) and would rewrite the listing mid-edit —
+is suspended for the duration of a session and restored when it ends, so the
+edits (and the marks that track them) survive focus changes, window switches
+and `:!` shell commands. The suspension deletes netrw's `AuNetrwEvent`
+autocommand *group* (not the autocmds one by one — those carry no API id,
+and deleting them individually silently fails, which is how a focus change
+used to re-render the listing and make every entry read `[new]`).
+
+And if a refresh slips past the suspension anyway (another plugin, a future
+netrw): the edit detects it. Entries whose lines are still there, only
+without their tracking mark, are *not* read as delete-and-recreate — the
+pairs cancel, deletions that cannot be verified are skipped with a notice,
+and the session re-attaches its tracking and carries on. A refresh can at
+worst cancel an edit; it can never empty the files.
+
+While editing, hints show next to lines: `[copy]`/`[move]`/`[delete]`/
+`[shell]`/`[archive]` on marked entries, `[copied]`/`[moved]` on lines added by
+`p`, and `[new]` on lines you typed (files or directories that `:w` will
+create). A line that merely repeats an existing entry's name is not `[new]`
+— that is what a re-rendered listing looks like, and `:w` will refuse it
+(claimed twice), not create over it. They update live as you edit; set any
+entry in `indicators` to `false` to hide it.
+
+## Keys
+
+Every key the plugin binds comes from this table; set one to `false` to disable
+it. The multi-key sequences are built from the same table — `%<mark>` is
+`regex_prefix` plus the mark key, `*<family>` is `star_prefix` plus a family
+key, `*<mark><family>` has the mark key in between — so they follow whatever
+you change here:
+
+    require('gliter.netrw').setup({
+      keys = {
+        -- marks
+        yank = 'y',          -- toggle a copy mark
+        move = 'm',          -- toggle a move mark
+        delete = 'd',        -- toggle a delete mark
+        archive = 'z',       -- toggle an archive mark
+        yank_all = 'Y',      -- copy mark on every entry
+        move_all = 'M',      -- move mark on every entry
+        delete_all = 'gD',   -- delete mark on every entry
+        archive_all = 'Z',   -- archive mark on every entry
+        paste = 'p',         -- apply the marks
+        clear = '<Esc>',     -- clear all marks
+        -- commands
+        copy_to = 'C',       -- copy marked to a typed directory
+        rename_to = 'R',     -- move/rename marked
+        delete_now = 'D',    -- delete marked after confirmation
+        execute = 'X',       -- toggle the executable bit (Visual mode:
+                             -- on the selection)
+        symlink = 'S',       -- symlink marked into a directory
+        shell = '!',         -- run a shell command on the marks, in a
+                             -- terminal window (interactive commands
+                             -- included)
+        run_each = 'x',      -- shell command one entry at a time;
+                             -- %x / *x mark entries for it
+        file = 'F',          -- the file report on the entry under the
+                             -- cursor, in a floating window
+        mkdir = '+',         -- create a file, or a directory ending in /
+        cd = '<C-g>',        -- :cd to the listed directory
+        -- bookmarks
+        bookmark = '<C-b>',  -- <C-b>1..9 bookmark this directory;
+                             -- <C-b>0 clears all; <C-b>l lists them
+        bookmark_jump = { '<C-1>', '<C-2>', '<C-3>', '<C-4>', '<C-5>',
+                          '<C-6>', '<C-7>', '<C-8>', '<C-9>' },
+                             -- jump to bookmark 1..9 (an unset slot is
+                             -- pointed here first)
+        -- bulk marking
+        regex_prefix = '%',  -- %y %m %d %z %! %x mark by regexp
+                             -- (%x = the one-at-a-time run)
+        star_prefix = '*',   -- *. */ *@ ** (and *<mark><family>,
+                             -- run_each's x included: *x.)
+        star_ext = '.',      --   family: by extension
+        star_dirs = '/',     --   family: directories
+        star_links = '@',    --   family: symlinks
+        star_exec = '*',     --   family: executables
+        -- edit mode
+        edit = 'E',          -- toggle in-place editing of the listing
+        edit_cancel = 'q',   -- cancel the edit, discard (apply is always :w)
+        -- other
+        preview = '<C-p>',   -- where netrw's own preview goes when `paste` is `p`
       },
-    }
-<
+    })
 
+`yank` and `move` are not operators in netrw buffers (`y{motion}` and `yy` do
+not exist there). In edit mode, apply is always `:w` and cancel is `edit_cancel`.
 
-WHERE IT COMES FROM *gliter.multicursor-gliter.multicursor-where-it-comes-from*
+The `<C-1>`..`<C-9>` jump keys need a terminal that sends them — most do;
+some reserve a few for tab switching. Every key here is remappable, and a
+slot can be switched off by setting its entry in `bookmark_jump` to `false`.
 
-The module started from jceb <https://github.com/jceb>’s
-multicursor-mappings.nvim <https://github.com/jceb/multicursor-mappings.nvim>
-(2026): the helpers behind the keys are his (the search-based ones unchanged,
-the place-and-step ones built on his follow-off/place/move/follow-on recipe),
-and the default keys started from his bindings. `<M-BS>` is not among them —
-it belongs to gliter.treesitterRE <gliter.treesitterRE.md> here (see the end of
-this page). The multicursor _idea_ itself did not come from jceb, though: it
-originated in Emacs.
+## Other options
 
-multiple-cursors <https://github.com/magnars/multiple-cursors.el> is the Emacs
-package that made "select this word everywhere and edit them all at once" a
-thing — and it did so in 2012, fourteen years before Neovim 0.13 shipped the
-cursors themselves: `C->` marks the next occurrence like this, `C-c C-<` marks
-them all, and every edit lands at every cursor. It also has `mc/edit-lines`: a
-cursor on every line of the region — which is exactly what Visual `<M-i>`
-below does, the built-in’s own `{Visual}Q`. If you have used
-multiple-cursors, your hands already know everything on this page.
+    require('gliter.netrw').setup({
+      star_kind = 'copy',  -- 'copy' | 'move' | 'delete' | 'archive' |
+                           -- 'shell' | 'run': kind the plain `*` family
+                           -- marks with, until a `*<mark><family>` press
+                           -- changes it
+      conflict = 'ask',    -- 'ask' | 'overwrite' | 'skip' | 'rename' on paste
+      listing = nil,       -- a shell command whose output replaces the
+                           -- listing: 'ls -ltrhF', 'ls -d */', ... — nil
+                           -- (or false) keeps netrw's own listings
+      indicators = {       -- the [tag] next to marked lines; false hides one
+        copy = '  [copy]',
+        move = '  [move]',
+        delete = '  [delete]',
+        shell = '  [shell]',
+        archive = '  [archive]',
+        run = '  [run]',
+        copied = '  [copied]',
+        moved = '  [moved]',
+        new = '  [new]',
+      },
+      edit = { confirm = true },  -- ask before applying edits with :w
+      notify_level = vim.log.levels.INFO,
+    })
 
+`native_unmap` lists netrw's own buffer-local keys that gliter.netrw removes
+inside netrw buffers (default `{ 'gR', '+', '%' }`). Set it to `{}` to keep
+netrw's originals.
 
-DEFAULTS                      *gliter.multicursor-gliter.multicursor-defaults*
+## Highlights
 
-The defaults (the helpers behind them drive the built-in commands through
-`nvim_feedkeys()`). All keys are global; buffer-local maps — netrw’s own
-keys inside netrw buffers, for instance — always win over them:
+| Group | Default | Used for |
+|-------|---------|----------|
+| `GliterNetrwCopy` | `DiffAdd` | copy-marked entries |
+| `GliterNetrwMove` | `DiffChange` | move-marked entries |
+| `GliterNetrwDelete` | `DiffDelete` | delete-marked entries |
+| `GliterNetrwShell` | `DiffText` | shell-marked entries |
+| `GliterNetrwArchive` | `Todo` | archive-marked entries |
+| `GliterNetrwIndicator` | `Comment` | the `[tag]` hints |
+| `GliterNetrwSearch` | `Search` | the live match preview while the `%<mark>` regexp prompt is up |
+| `GliterNetrwEditNew` | `DiffAdd` | edit mode: a line that will create an entry |
+| `GliterNetrwEditRename` | `DiffChange` | edit mode: a renamed entry |
+| `GliterNetrwEditDelete` | `DiffDelete` | edit mode: a removed line |
 
-  ------------------------------------------------------------------------
-  name             key          mode             action
-  ---------------- ------------ ---------------- -------------------------
-  clear            <Esc>        n                clear all multicursors
+## Ex commands
 
-  follow           <C-=>        n                q= — toggle 'follow'
+`:GliterNetrwPaste` applies the marks into the current netrw directory,
+`:GliterNetrwClear` clears them, `:GliterNetrwEdit` toggles in-place editing —
+the same as `p`, `<Esc>` and `E`. `:GliterNetrwBookmarks` lists the nine
+bookmarks.
 
-  insert           <M-i>        n                a cursor at the cursor
-                                                 position — the built-in’s
-                                                 Q under the hood (1<M-i>
-                                                 adds, 2<M-i> removes,
-                                                 counts pass through)
-
-  insert           <M-i>        x                a cursor on every line of
-                                                 the selection, at the
-                                                 cursor column (the
-                                                 built-in’s {Visual}Q)
-
-  below            <Leader>cj   n                place a cursor and move
-                                                 down — 3<Leader>cj leaves
-                                                 cursors on three lines,
-                                                 you on the third
-
-  above            <Leader>ck   n                place a cursor and move
-                                                 up (3<Leader>ck, the same
-                                                 upward)
-
-  skip_next        <C-s>        n                skip — no cursor at the
-                                                 match under the cursor,
-                                                 move to the next match
-
-  skip_prev        <C-m>        n                skip backwards — back to
-                                                 the previous match, no
-                                                 cursor placed; in
-                                                 quickfix/location windows
-                                                 <CR> keeps its builtin
-                                                 jump
-
-  remove_prev      <C-b>        n                remove the previous
-                                                 cursor [up] — took a
-                                                 match you did not want?
-                                                 this un-takes it
-
-  remove_next      <C-f>        n                remove the next cursor
-                                                 [down]
-
-  all              <M-a>        n, x             cursor at every
-                                                 occurrence of word /
-                                                 selection
-
-  next             <C-n>        n, x             add cursor at next /
-                                                 previous occurrence
-
-  prev             <C-p>        n, x
-
-  next_reset       <Leader>cn   n, x             reset search pattern,
-                                                 then next / previous
-                                                 occurrence
-
-  prev_reset       <Leader>cp   n, x
-  ------------------------------------------------------------------------
-
-PLACING CURSORS: <M-I>, <LEADER>CJ, <LEADER>CK ~
-
-`<M-i>` in Normal mode places a cursor at the cursor position — the
-built-in’s `Q`, so a count still forces it (`1<M-i>` adds, `2<M-i>` removes).
-In Visual mode it is the built-in’s `{Visual}Q` — a cursor on every line of
-the selection, at the cursor column. `V3k<M-i>` on a block of four lines and
-every `I`/`A`/edit lands four times: magnars’ `mc/edit-lines`.
-
-- **<Leader>cj** places a cursor and moves down; **<Leader>ck** places
-    one and moves up. A count does the placing for you and ends with
-    you ON the last cursor: `3<Leader>cj` is the old `n:cmd` — cursors
-    on three lines, then just edit (`A;`, `<Esc>`, done — the primary
-    cursor edits too, wherever it stands, so ending on the third is
-    what keeps it three lines, not four).
-- The columns ride j/k: a short line clamps the column, a longer one
-    brings it back — plain Vim motion behavior, nothing new to learn.
-- They live under `<Leader>c` next to the reset keys on purpose:
-    `<M-i>` stays a single, instant key (no `timeoutlen` beat while Vim
-    waits for a second one), and the sequence survives every terminal —
-    Alt-key escapes travel badly through some of them. (A raw
-    `extra_keys` row that starts with `<M-i>`, like the flash jump at the
-    top of this page, does bring the beat back.)
-
-The walk under `<C-n>`/`<C-p>` is the same recipe with a search step —
-'follow' off, `Q`, `n`/`N`, 'follow' back on. **<C-s>** is the skip: the match
-under the cursor gets no cursor, and the next one comes up — `<C-n>` takes,
-`<C-s>` declines and steps on, **<C-m>** steps back to the one you declined
-(skip it back, and a later `<C-n>` takes it after all). Took one you should not
-have? **<C-b>** jumps back to the previous cursor and takes it off again —
-skip by un-taking — and **<C-f>** does the same to the next one. When the
-next matches are far away, just move down a bunch of lines and `<C-n>`
-continues from there — the pattern stays set.
-
-`<C-m>` _is_ `<CR>` (both are 0x0D) — the mapping therefore replaces Enter
-wherever no buffer-local `<CR>` exists. Quickfix and location-list windows jump
-through a builtin Enter, and a plain global `<C-m>` mapping is exactly how
-"Enter does nothing in the quickfix window" happens; in those windows the
-builtin jump runs instead.
-
-`<M-BS>` belongs to gliter.treesitterRE <gliter.treesitterRE.md> here (walk the
-selection ladder back down), so it is not among the defaults; `<Esc>` clears
-all cursors, and the built-in `<C-l>` still works. jceb’s binding for it —
-_clear all cursors_ — is one row away if you want it back:
-
->lua
-    extra_keys = {
-      { "n", "<M-BS>",
-        function()
-          vim.api.nvim_buf_clear_namespace(
-            0, vim.api.nvim_create_namespace("nvim.multicursor"), 0, -1)
-        end,
-        { noremap = true, desc = "Clear all multicursors" } },
-    }
-<
-
-With lazy.nvim the examples at the top belong in the plugin’s `config`/`opts`
-function. gliter only sets up the modules you name in `setup()`, so name this
-one: without a plugin manager, call `require("gliter").setup { multicursor = {}
-}` — or set `vim.g.gliter = { multicursor = {} }` before startup and let
-`plugin/gliter.lua` handle it, or require the module and set it up directly.
-After setup, `M.keys` holds the rows that were applied — plain `{ mode, key,
-rhs, opts }` tuples, `:verbose nmap`’s view of the module.
-
-
-BEFORE AND AFTER      *gliter.multicursor-gliter.multicursor-before-and-after*
-
-Here are five edits — each one used to be a regex, and with the cursors (and
-`zq`, the built-in "a cursor at every match of the search pattern, wrapping";
-in Visual mode limited to the selection) they are just keys. The search itself
-stays a full Vim regex — `\_s+`, `\%V`, offsets, all of it — the cursors
-only replace the `:g//norm!` plumbing on top of it.
-
-**Changing the brackets to braces.** Used to be a search with an offset, then a
-`:g//` normal-command run:
-
->
-    /\%Vmessages\=.\{-}\(\_s\+\)\={/e
-    :g//norm!ncs{[
-<
-
-Now: the search (any regex you like — `\_s+`, `\%V`, all of it, the cursors
-take whatever it matches), `zqn` for a cursor at every match, then — with
-`'follow'` on — one `f{` steps every cursor to its brace, and the change
-lands once:
-
->
-    /messages<CR>
-    zqn
-    <C-=>f{        every cursor to its {
-    cs{[           (vim-sandwich — whatever edit you use replays at
-                   every cursor)
-<
-
-`{Visual}zqn` keeps the cursors inside the selection, the old `\%V`’s job.
-And every cursor is on screen before you commit.
-
-**Quoting every character of a selection.** Used to be:
-
->
-    :'<,'>s/\p/"&",/g
-<
-
-Now select, `zq/` with `\p` — a cursor on every printable character of the
-selection — then insert before each character, step every cursor onto its
-character, and append after it:
-
->
-    vll             (any selection)
-    zq/\p<CR>
-    i"<Esc>
-    <C-=>l          every cursor onto its character
-    a",<Esc>
-<
-
-**Changing the outer-level HTML tags.** Used to be one line of regex you would
-rather not read twice:
-
->
-    :%s@\(<\h\w*\(.\{-}>\)\).*<\&\1@<div\2@g
-<
-
-Now `<C-n>` walks the tags — cursor on the first one, then:
-
->
-    <C-n><C-n>…      a cursor at each tag you want
-    <C-s>            skip the one under you: no cursor, next match
-    <C-b>            took one you didn't? it un-takes the last one
-    12j…<C-n>        a bad stretch? go down and continue from there
-    cwdiv<Esc>
-<
-
-It’s visual — everything you are about to change is on screen — and there
-is no regex at all.
-
-**Renaming everything but one dotted name.** `:s/prefill(?!\.)/input/g` needs a
-lookahead; the cursors have it for free. Search, `zqn`, take the cursor off the
-one exception (`]C`/`[C` walk the cursors, `Q` drops the one you are on),
-rename:
-
->
-    /prefill<CR>
-    zqn
-    ]C…Q             (off `prefill.normal`)
-    cwinput<Esc>
-<
-
-**The old n:cmd.** A count and `:` — `3:norm A;`, say. Now `3<Leader>cj` puts
-cursors on three lines — and you on the third — and you edit normally:
-
->
-    3<Leader>cj
-    A;<Esc>
-<
-
-
-Q= AND 'FOLLOW'        *gliter.multicursor-gliter.multicursor-q=-and-'follow'*
-
-`q=` does nothing except toggle the buffer-local `'follow'` option
-(|'follow'|): `1q=` sets it, `2q=` clears it, so the option could be set
-directly via `vim.bo.follow`; the module feeds the keys as the original did.
-`Q` has no option behind it — it places/toggles a cursor at the cursor
-position and also disables `'follow'`. Edits cascade to every cursor either
-way; `'follow'` only decides whether motions (w, n, fx …) replay at every
-cursor too — which is why the helpers switch it off for their steps (the j/k
-of `<Leader>cj`/`<Leader>ck`, the search of the walk and of the skips) and back
-on at the end.
-
-Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
-
-vim:tw=78:ts=8:noet:ft=help:norl:
+Requires Neovim 0.12+.
