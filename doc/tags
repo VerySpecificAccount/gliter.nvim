@@ -51,8 +51,8 @@ gliter.netrw-gliter.netrw	gliter.netrw.txt	/*gliter.netrw-gliter.netrw*
 gliter.netrw-gliter.netrw-applying-the-marks-with-p	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-applying-the-marks-with-p*
 gliter.netrw-gliter.netrw-bookmarks	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-bookmarks*
 gliter.netrw-gliter.netrw-commands	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-commands*
-gliter.netrw-gliter.netrw-commands	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-commands*
 gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)*
+gliter.netrw-gliter.netrw-ex-commands	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-ex-commands*
 gliter.netrw-gliter.netrw-highlights	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-highlights*
 gliter.netrw-gliter.netrw-install	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-install*
 gliter.netrw-gliter.netrw-keys	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-keys*
@@ -60,6 +60,7 @@ gliter.netrw-gliter.netrw-marking-many-entries-at-once	gliter.netrw.txt	/*gliter
 gliter.netrw-gliter.netrw-marks	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-marks*
 gliter.netrw-gliter.netrw-other-options	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-other-options*
 gliter.netrw-gliter.netrw-stolen-from-emacs	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-stolen-from-emacs*
+gliter.netrw-gliter.netrw-the-custom-listing-(listing)	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-the-custom-listing-(listing)*
 gliter.netrw-table-of-contents	gliter.netrw.txt	/*gliter.netrw-table-of-contents*
 gliter.netrw.txt	gliter.netrw.txt	/*gliter.netrw.txt*
 gliter.nvim-gliter	gliter.nvim.txt	/*gliter.nvim-gliter*
