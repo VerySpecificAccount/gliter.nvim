@@ -68,7 +68,9 @@
 ---                         — Tab/S-Tab and the wildmenu untouched),
 ---                         and the history's continuation as a ghost
 ---                         after the line (fish's autosuggestion:
----                         C-p cycles the echoes, C-n takes one) —
+---                         C-p cycles the echoes, C-n cycles them back
+---                         and takes the newest, C-y/M-l take whichever
+---                         is showing) —
 ---                         input()'s prompts get the same ride
 ---   gliter.which          a light which-key: pause after a prefix and a
 ---                         popup lists the mappings that continue it,
