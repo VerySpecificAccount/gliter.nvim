@@ -50,7 +50,19 @@ jobs:
           sed -i -E 's/([^ ])(\*gliter[^*| ]+\*)$/\1 \2/' doc/*.txt
 
       - name: Generate help tags
-        run: nvim --headless -c "helptags doc" -c "qa!"
+        run: |
+          # Two H2 headings of the same name in one .md make two tags for
+          # one name; :helptags warns with E154 and keeps only the first
+          # file's — |link|s land on the wrong section, and the error is
+          # invisible in the step's exit code (an error in a -c command
+          # does not fail it), so the docs look generated and healthy.
+          # The errors are looked for by hand; the step fails on them.
+          out=$(nvim --headless -c "helptags doc" -c "qa!" 2>&1)
+          printf '%s\n' "$out"
+          if printf '%s' "$out" | grep -q '^E[0-9]'; then
+            echo "::error::helptags reported an error — a duplicate heading, most likely (two H2s of the same name in one .md)"
+            exit 1
+          fi
 
       - name: Commit files
         run: |
