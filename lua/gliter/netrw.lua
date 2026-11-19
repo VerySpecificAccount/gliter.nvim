@@ -74,6 +74,11 @@ function M.setup(opts)
       vim.schedule(function()
         if vim.api.nvim_buf_is_valid(args.buf) and vim.bo[args.buf].filetype == 'netrw' then
           check_root_switch(args.buf)
+          -- The custom listing, when one is configured (see custom.lua),
+          -- replaces the listing text now: the keys attach right after and
+          -- read its flag to decide which of netrw's own keys the buffer
+          -- may keep, and the decorations parse the text it left.
+          require('gliter.netrw.custom').render(args.buf)
           keymaps.attach(args.buf)
           decor.watch(args.buf)
         end
