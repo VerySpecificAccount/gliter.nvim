@@ -3,8 +3,10 @@
 Enhances Neovim's built-in netrw (0.12+) with entry marks that are shared across
 every netrw buffer, window and tab page, one-key commands that act on them,
 nine numbered bookmarks that survive restarts, marking by regexp with a live
-highlight, and in-place editing of the listing itself: add,
-remove and rename files and directories by editing the buffer text. It does
+highlight, in-place editing of the listing itself: add,
+remove and rename files and directories by editing the buffer text, and a
+custom listing style — any shell command's output (`ls -ltrhF`, `ls -d */`)
+replacing the listing netrw draws. It does
 not replace netrw.
 
 > **Neovim 0.13+ note.** Neovim is growing a new built-in directory browser
@@ -117,8 +119,9 @@ cursor when nothing of that kind is marked.
 | `D` | **delete** delete-marked entries now, after confirmation |
 | `X` | **chmod**: toggle the executable bit on every marked entry (any kind), or the one under the cursor, or — from Visual mode — each entry of the selection; files only, directories are skipped |
 | `S` | **symlink** marked entries into a typed directory |
-| `!` | run a **shell command** once on the `!`-marked entries; with none of those, on any marked entries, else on the entry under the cursor. `*` in the command stands for the files, otherwise they are appended |
+| `!` | run a **shell command** once on the `!`-marked entries; with none of those, on any marked entries, else on the entry under the cursor. `*` in the command stands for the files, otherwise they are appended. The command runs in a terminal window — a bottom split, like `x`'s — so interactive commands work (sudo's password prompt, `read`, `less`); the window stays up with the output when the command is done, and the listing refreshes when it exits |
 | `x` | run the command **one entry at a time**: the `x`-marked entries, else the same selection as `!` (its previous command is the default), but each entry runs alone in a terminal, the next one only when the previous command exits. `*` stands for the entry being run; close the terminal to stop the queue |
+| `F` | **file report**: run the `file` command on the entry under the cursor and show its report in a floating window — what the thing is, and the details `file` has to tell about it (the magic behind the name, the mime type). `q`, `<Esc>` or `<CR>` closes the float; on a custom listing `qf` — netrw's own file-info key, which cannot read the custom text — does the same |
 | `+` | **create** a file, or a directory when the name ends in `/` (parents included) |
 | `<C-g>` | **cd**: make the directory listed here the current working directory (a global `:cd`; netrw's own `c` is a window-local `:lcd`) |
 
@@ -190,6 +193,53 @@ form — it re-points a slot that is already set. The jump is a plain
 buffer already carries its name — and gliter attaches its keys and
 decorations to the buffer it lands on, so it is a gliter.netrw buffer like
 any other: same keys, same marks, same decoration.
+
+## The custom listing (`listing`)
+
+`setup { listing = 'ls -ltrhF' }` replaces the listing netrw draws with
+the output of a shell command of your choosing — run in the listed
+directory, through your `shell`, its stdout becoming the listing:
+
+    require('gliter.netrw').setup {
+      listing = 'ls -ltrhF',     -- newest last, with the details
+      -- listing = 'ls -d */',  -- directories only
+      -- listing = 'ls -la --group-directories-first',
+      -- listing = 'exa --git --icons',   -- anything that prints names
+    }
+
+The banner above the listing stays netrw's own — the directory's name, the
+quick help, `I`'s toggling — so the buffer still says where it is. The
+command runs whenever netrw lists: on opening a directory, on every re-list
+(`i`, `s`, `r`, `<C-l>`, a focus change, the refresh after a gliter
+operation). A failed command falls back to netrw's own listing with a
+notice — a typo'd flag never blanks the buffer — and is retried on the next
+re-list.
+
+Everything keeps working on the custom text, because the parser (not
+netrw's line-reading) finds the entries: marks and their highlights, the
+one-key commands, the `/` search, `%` regexp marking, the `*` families,
+edit mode — and the entry under the cursor is the one the click or the
+cursor column is on, in long listings too. The formats the parser reads:
+`ls`'s classify suffixes (`dir/`, `link@`, `file*`, `fifo|`, `socket=`),
+the comma stream of `-m`, the columns of `-C`/`-x`, the long format of
+`-l` (with or without `-h`, `--si`, `-a`, `-t` and friends), and plain
+one-per-line — plus a symlink's ` -> target` tail, which reads as the
+link.
+
+netrw's own keys that take the entry off the line cannot read the custom
+text — `ls -l`'s columns are not a file name — so on a custom-listing
+buffer they are replaced by parser-driven versions (`<CR>`, `o`, `v`, `t`,
+`P`, the mouse keys, the preview key open or preview what the parser
+found; `qf` shows the `F` float) or removed (`mf` and netrw's other
+line-reading keys, which would act on the metadata as if it were a name).
+netrw re-installs them with its next re-list of a plain style. And because
+the custom text is flat, the window's style is pinned to thin: `i` re-lists,
+and the custom listing comes back — the styles are the `listing` option's to
+replace, so with one set, `i` has no visible effect (`I`'s banner toggle is
+netrw's own and still works).
+
+With `listing` unset (the default) netrw's own listings and styles are
+untouched, and none of the above applies.
 
 ## Editing the listing in place (`E`)
 
@@ -279,9 +329,13 @@ you change here:
         execute = 'X',       -- toggle the executable bit (Visual mode:
                              -- on the selection)
         symlink = 'S',       -- symlink marked into a directory
-        shell = '!',         -- run a shell command on the marks
+        shell = '!',         -- run a shell command on the marks, in a
+                             -- terminal window (interactive commands
+                             -- included)
         run_each = 'x',      -- shell command one entry at a time;
                              -- %x / *x mark entries for it
+        file = 'F',          -- the file report on the entry under the
+                             -- cursor, in a floating window
         mkdir = '+',         -- create a file, or a directory ending in /
         cd = '<C-g>',        -- :cd to the listed directory
         -- bookmarks
@@ -323,6 +377,9 @@ slot can be switched off by setting its entry in `bookmark_jump` to `false`.
                            -- marks with, until a `*<mark><family>` press
                            -- changes it
       conflict = 'ask',    -- 'ask' | 'overwrite' | 'skip' | 'rename' on paste
+      listing = nil,       -- a shell command whose output replaces the
+                           -- listing: 'ls -ltrhF', 'ls -d */', ... — nil
+                           -- (or false) keeps netrw's own listings
       indicators = {       -- the [tag] next to marked lines; false hides one
         copy = '  [copy]',
         move = '  [move]',
@@ -357,7 +414,7 @@ netrw's originals.
 | `GliterNetrwEditRename` | `DiffChange` | edit mode: a renamed entry |
 | `GliterNetrwEditDelete` | `DiffDelete` | edit mode: a removed line |
 
-## Commands
+## Ex commands
 
 `:GliterNetrwPaste` applies the marks into the current netrw directory,
 `:GliterNetrwClear` clears them, `:GliterNetrwEdit` toggles in-place editing —
