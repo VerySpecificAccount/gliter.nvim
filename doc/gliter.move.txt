@@ -252,27 +252,6 @@ mode = 'v'|'V'|'\22', r1, c1, r2, c2 }`), the live Visual selection when left
 out. The selection is left selected where it lands, and the carry is one undo
 entry.
 
-With flash.nvim <https://github.com/folke/flash.nvim> — `S` on a selection
-picks a label, the selection lands where it points (flash’s positions are
-0-based, `carry_to`’s are 1-based):
-
->lua
-    vim.keymap.set('x', 'S', function()
-      local v1, v2 = vim.fn.getpos('v'), vim.fn.getpos('.')
-      local kind = vim.fn.visualmode()
-      require('flash').jump({
-        action = function(match)
-          require('gliter.move').carry_to({ match.pos[1] + 1, match.pos[2] + 1 }, {
-            mode = kind, r1 = v1[2], c1 = v1[3], r2 = v2[2], c2 = v2[3],
-          })
-        end,
-      })
-    end)
-<
-
-The selection is read BEFORE flash runs (flash’s label UI leaves Visual mode)
-and handed to `carry_to` as the explicit region.
-
 
 OPTIONS                                      *gliter.move-gliter.move-options*
 
