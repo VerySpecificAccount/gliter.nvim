@@ -661,6 +661,7 @@ require("lz.n").load({
         }
       end,
     },
+})
 ```
 
 ### Without a plugin manager
