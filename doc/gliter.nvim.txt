@@ -529,8 +529,8 @@ The full options table — every option, every module ~
                                      -- that still reaches past the edge),
                                      -- the walk going all the way to the
                                      -- RIGHT END of the LONGEST LINE
-                                     -- covered, b back to the line's
-                                     -- own beginning (all the way to 0) —
+                                     -- covered (b back to the line's own
+                                     -- beginning, all the way to 0) —
                                      -- and o/O change the moving corner
           normal = '<C-m>',          -- n: the mode — C-h C-j C-k C-l
                                      -- transpose the adjacent words in
@@ -538,7 +538,8 @@ The full options table — every option, every module ~
                                      -- walk THIS FILE's jumps, repeatable
                                      -- inside one <C-m> — the plain
                                      -- h j k l o i are replaced, not
-                                     -- aliased (false keeps Enter)
+                                     -- aliased (C-m C-o is not the same
+                                     -- as C-m o) (false keeps Enter)
           confirm = '<C-t>',        -- in-mode: keep the moves
           exchange = '<C-x>',        -- in-mode / x: mark an exchange area,
                                      -- then swap — a pending wait also takes
@@ -547,8 +548,14 @@ The full options table — every option, every module ~
                                      -- normal mode; a move made before the
                                      -- press is undone first; Vim's own
                                      -- normal-mode <C-x> is never
-                                     -- shadowed. For richer exchanges use
-                                     -- mizlan/iswap.nvim
+                                     -- shadowed. A MIXED pair swaps too —
+                                     -- a block against a word or a line:
+                                     -- the word lands in the rectangle's
+                                     -- top-left, the rectangle's rows
+                                     -- carried into the word's place;
+                                     -- both on one row, the swap happens
+                                     -- inside that row. For richer
+                                     -- exchanges use mizlan/iswap.nvim
         },
         hint = true,                -- echo the keys while the mode runs
         reindent = false,           -- gomove's option: reindent lines after a
@@ -830,38 +837,38 @@ Every module has a section of its own below — and full documentation in
                                       with t/T); o/O change the
                                       moving corner; the word
                                       motions w/e/b/W/E/B carry
-                                      it line-wise over the
-                                      CURSOR’S OWN LINE alone —
-                                      all the way to the right
-                                      based on the location of
-                                      the cursor, the first
-                                      line’s words only when the
-                                      cursor was on the first
-                                      line, never a word of
-                                      another row (w onto the
-                                      next word’s first
-                                      character, e its end, b
-                                      back onto the previous
-                                      word’s first and on to the
-                                      line’s beginning, all the
-                                      way to 0; W/E/B the WORD
-                                      twins; a V selection is
-                                      carried by columns, b’s
-                                      floor the full dedent);
-                                      from normal mode <C-m> is
-                                      a MODE: C-h/C-j/C-k/C-l
-                                      transpose the adjacent words
-                                      in that direction (once,
-                                      [count] bubbles — the plain
-                                      h/j/k/l/o/i are replaced,
+                                      it line-wise ROW-FIRST —
+                                      the cursor’s own line’s
+                                      words first, then the NEXT
+                                      BIGGEST LINE (the next row
+                                      that still reaches past
+                                      the edge), the walk going
+                                      all the way to the RIGHT
+                                      END of the LONGEST LINE
+                                      covered (w onto the next
+                                      word’s first character, e
+                                      its end, b back onto the
+                                      previous word’s first and
+                                      on to the line’s
+                                      beginning, all the way to
+                                      0; W/E/B the WORD twins; a
+                                      V selection is carried by
+                                      columns, b’s floor the
+                                      full dedent); from normal
+                                      mode <C-m> is a MODE:
+                                      C-h/C-j/C-k/C-l transpose
+                                      the adjacent words in that
+                                      direction (once, [count]
+                                      bubbles — the plain
+                                      h j k l o i are replaced,
                                       not aliased) and C-o/C-i
-                                      walk THIS FILE’s jumps only —
-                                      Vim’s
-                                      own jump list, the entries
-                                      of other files skipped,
-                                      never taken, the cursor
-                                      landing on each, every
-                                      press another step (a
+                                      walk THIS FILE’s jumps
+                                      only — Vim’s own jump
+                                      list, the entries of other
+                                      files skipped, never
+                                      taken, the cursor landing
+                                      on each, every press
+                                      another step (a
                                       jumps.scope = 'own' option
                                       keeps a separate jump list
                                       per file instead); the
@@ -883,7 +890,13 @@ Every module has a section of its own below — and full documentation in
                                       before, the word after,
                                       the line below, the line
                                       above) or any motion:
-                                      C-x{motion}
+                                      C-x{motion} — a block
+                                      against a word or a line
+                                      swaps too, the word
+                                      landing in the rectangle’s
+                                      top-left and the
+                                      rectangle’s rows carried
+                                      into the word’s place
 
   gliter.matchit        Neovim 0.9+   M (the key you gave %)     matchit.vim (1996)
                                       jumps between the words
@@ -1403,38 +1416,37 @@ lands on line `{count}`), and `f{char}`/`t{char}`/`F{char}`/`T{char}` slide it
 toward a char ahead or behind (`t`/`T` stopping one short), and the word
 motions `w`/`e`/`b`/`W`/`E`/`B` carry it toward words LINE-WISE — the carry
 the slide, a word never taking the selection to another row: FORWARD is Vim’s
-own direction, left to right, and the walk’s WORLD is the line the CURSOR is
-on — all the way to the right based on the location of the cursor: the cursor
-was on the first line of the selection, `w`/`e` go only to the end of that
-line, the words of no other row ever read and the key dead past the line’s
-last target — `w` lands the right edge on the next word’s first character,
-`e` on the next word-end, `b` the left edge on the previous word’s first
-(`[count]` the Nth word; `W`/`E`/`B` the WORD twins — non-blank runs,
-punctuation riding along); `b` walks back the same way with a FLOOR: the
-beginning of the line — it keeps moving back until column 1, all the way to
-0, and past it is dead; a line selection (`V`) is carried by COLUMNS — every
-line moves together, the walking edge the cursor row’s own first word, and
-`b`’s floor the full dedent (every line to its own beginning). What the
-selection passes over shifts behind it, order intact, a line never scrambled.
-`o`/`O` change the moving corner. From normal mode `<C-m>` is a MODE — a
-getchar() loop that stays until it is left: one of `h`/`j`/`k`/`l` transposes
-WORDS — Emacs' `transpose-words` on Vim’s own words (`'iskeyword'`): the
-word at the cursor trades places with the ADJACENT word the direction names —
-`C-l` the one after it, `C-h` the one before, `C-j`/`C-k` the word below/above
-(the one
-whose span sits nearest the cursor word’s column, blank lines crossed) — so
-in `foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is `foo(baz, bar)` — args
+own direction, left to right, and the walk is ROW-FIRST — the words of the
+line the CURSOR is on (the first line, where the cursor was) are walked before
+any other’s, and a vertical selection goes on to the NEXT BIGGEST LINE (the
+next row that still reaches past the edge), the walk continuing all the way to
+the RIGHT END of the LONGEST LINE covered and dead past it — `w` lands the
+right edge on the next word’s first character, `e` on the next word-end, `b`
+the left edge on the previous word’s first (`[count]` the Nth word;
+`W`/`E`/`B` the WORD twins — non-blank runs, punctuation riding along); `b`
+walks back the same way with a FLOOR: the beginning of the line — it keeps
+moving back until column 1, all the way to 0, and past it is dead; a line
+selection (`V`) is carried by COLUMNS — every line moves together, the
+walking edge the cursor row’s own first word, and `b`’s floor the full
+dedent (every line to its own beginning). What the selection passes over shifts
+behind it, order intact, a line never scrambled. `o`/`O` change the moving
+corner. From normal mode `<C-m>` is a MODE — a getchar() loop that stays
+until it is left: one of `C-h`/`C-j`/`C-k`/`C-l` transposes WORDS — Emacs'
+`transpose-words` on Vim’s own words (`'iskeyword'`): the word at the cursor
+trades places with the ADJACENT word the direction names — `C-l` the one
+after it, `C-h` the one before, `C-j`/`C-k` the word below/above (the one whose
+span sits nearest the cursor word’s column, blank lines crossed) — so in
+`foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is `foo(baz, bar)` — args
 trade places, `[count]` bubbles the word along; the trade happens once and the
 mode is done with it (the old `<C-t>{direction}` spelling works the same; the
 plain `h j k l o i` are replaced, not aliased — `C-m C-o` is not the same as
-`C-m o`) —
-and `<C-m>C-o`/`<C-m>C-i` walk THIS FILE’s jumps only: Vim’s own jump list, the
-entries of other files skipped, never taken — a session of file1 > file2 >
-file1 walks file1’s positions alone — the step itself native (the cursor
-lands on each jump, `[count]` locations at a time, and a step forward returns
-to where the walk began), every press another step, the keys mixed freely
-inside one `<C-m>` (`<C-m>i o o` steps forward one, back two; the old
-`<C-o>`/`<C-i>` spellings work the same); `jumps.scope = 'own'` keeps a
+`C-m o`) — and `<C-m>C-o`/`<C-m>C-i` walk THIS FILE’s jumps only: Vim’s
+own jump list, the entries of other files skipped, never taken — a session of
+file1 > file2 > file1 walks file1’s positions alone — the step itself
+native (the cursor lands on each jump, `[count]` locations at a time, and a
+step forward returns to where the walk began), every press another step, the
+keys mixed freely inside one `<C-m>` (`<C-m>i o o` steps forward one, back two;
+the old `<C-o>`/`<C-i>` spellings work the same); `jumps.scope = 'own'` keeps a
 separate jump list per file instead — every jump Vim records bucketed into
 its own file’s list, each file’s list outliving Vim’s window-shared one
 and keeping its place while you walk another file’s. The carry is an API too:

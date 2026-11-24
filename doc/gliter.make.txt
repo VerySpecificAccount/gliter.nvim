@@ -41,7 +41,7 @@ WHAT IT DOES                            *gliter.make-gliter.make-what-it-does*
     (runs the file, so you get the real traceback; `python -m py_compile %`
     sits commented in the table for a syntax-check-only variant), `sh %` for
     shell scripts (bash and zsh files are `sh` too — the script runs), `latexmk`
-    for tex. They are ordinary buffer-local options afterwards: `:setl   makeprg=...` on a buffer still wins (that buffer keeps yours), and so does
+    for tex. They are ordinary buffer-local options afterwards: `:setl makeprg=...` on a buffer still wins (that buffer keeps yours), and so does
     a global `:set makeprg=...` that is not the default. A `:compiler` a
     filetype’s own plugin installed is not your hand either — sh.vim runs
     `compiler bash` under `b:is_bash` (makeprg `bash -n`, no file at all: the
@@ -93,7 +93,7 @@ WHAT IT DOES                            *gliter.make-gliter.make-what-it-does*
     through; a failed run that recognizes nothing keeps the previous list
     instead of wiping it (a clean success clears it, the way `:make` does).
     The lines themselves keep exactly the colors the tool painted on them —
-    no extra underline on top. The exception trailer (`SyntaxError: invalid   syntax`, `NameError: ...`) becomes the entry’s message, so the quickfix
+    no extra underline on top. The exception trailer (`SyntaxError: invalid syntax`, `NameError: ...`) becomes the entry’s message, so the quickfix
     reads the error, not the `File "..."` line that only carried the
     location.
 - **Jumps land on the exact character, whatever the format said**: the
@@ -101,7 +101,7 @@ WHAT IT DOES                            *gliter.make-gliter.make-what-it-does*
     under the echoed source (`^^^^`, tildes in 3.13’s `~~^^~~`)
     gives column and span — translated out of the echo’s indentation (CPython
     prepends four spaces to the echoed line) into the file’s own coordinates;
-    else the quoted symbols of the exception trailer (`NameError: name 'x' is   not defined`) are searched on the error’s line — the first one found there
+    else the quoted symbols of the exception trailer (`NameError: name 'x' is not defined`) are searched on the error’s line — the first one found there
     wins, the way Emacs’ compilation lands on the offending token. The span is
     left VISUALLY SELECTED (v-mode) by `<CR>` — where Emacs’ compilation only
     flashes a face, the next key acts on exactly what the compiler pointed

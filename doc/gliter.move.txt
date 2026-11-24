@@ -63,21 +63,16 @@ Press `<C-m>` on a selection and a hint line appears — the mode is on:
   w e b                the word motions, LINE-WISE: the carry is the
                        slide — a word never takes the selection to
                        another row. FORWARD is Vim’s own direction, left
-                       to right, and the walk is ROW-FIRST: the words
-                       of the line the CURSOR is on — the first line,
-                       where the cursor was — are walked before any
-                       other’s, and a selection that goes VERTICAL —
-                       several rows, V or <C-v> alike — moves forward by
-                       the words in the first line, then after reaching
-                       its end goes on to the NEXT BIGGEST LINE: the
-                       next row that still reaches past the edge, the
-                       walk continuing from there (visual mode’s own
-                       expanding-to-the-right shape), walking all the
-                       way to the RIGHT END of the LONGEST LINE covered
-                       — past it w is dead — w landing the selection’s
-                       right edge on the next word’s first character, e
-                       on the next word-end, one word a press. b is the
-                       backward twin: the left edge lands on the previous word’s
+                       to right, and the walk’s WORLD is the line the
+                       CURSOR is on — all the way to the right based on
+                       the location of the cursor: the cursor was on the
+                       first line of the selection, w/e go only to the
+                       end of that line (the words of no other row are
+                       ever read, and past the line’s last target the key
+                       is dead), w landing the selection’s right edge on
+                       the next word’s first character, e on the next
+                       word-end, one word a press. b is the backward
+                       twin: the left edge lands on the previous word’s
                        first, right to left — with a FLOOR: the beginning
                        of the line, b keeps moving back until column 1,
                        all the way to 0, and past it is dead. On a line
@@ -124,13 +119,14 @@ same two carries `hjkl` speak — rows, then columns. What the selection passes
 over shifts behind it, order intact. A pending `f`/`t`/`F`/`T` char is let go
 with `<Esc>` — the mode stays. `0` `$` `f` `t` `F` `T` are dead on a line
 selection (`0` dedents it fully, and the word motions carry it by columns —
-see below); `w`/`e`/`b`/ `W`/`E`/`B` read the CURSOR’S OWN LINE alone — all
-the way to the right to that line’s end, `b` back to the line’s own
-beginning — and never take the selection to another row; `gg`/`G` work on
-every shape. The SCREEN cursor stays in the buffer for the whole ride — on
-the selection, on the jump — never on the message line at the bottom of the
-screen under the hint (0.11+; an older nvim shows it there, the way a
-`getchar()` always has).
+see below); `w`/`e`/`b`/ `W`/`E`/`B` walk the selection’s rows ROW-FIRST —
+the cursor’s own line’s words first, then the NEXT BIGGEST LINE (the next
+row that still reaches past the edge), the walk going all the way to the RIGHT
+END of the LONGEST LINE covered, `b` back to the line’s own beginning — and
+never take the selection to another row; `gg`/`G` work on every shape. The
+SCREEN cursor stays in the buffer for the whole ride — on the selection, on
+the jump — never on the message line at the bottom of the screen under the
+hint (0.11+; an older nvim shows it there, the way a `getchar()` always has).
 
 
 FROM NORMAL MODE: THE <C-M> MODE ~
@@ -143,13 +139,12 @@ own shape, that stays until it is left:
     word is, the way `w` does), in the DIRECTION the key names — the
     Ctrl is ON, the way the exchange’s aim keys spell theirs: `C-m C-l`
     with the word after the cursor’s (Emacs’ own `M-t`), `C-m C-h` with
-    the one before, `C-m C-j` with the word below, `C-m C-k` with the
-    word above — the word whose span sits nearest the cursor word’s
+    the one before, `C-m C-j` with the word below, `C-m C-k` with
+    the word above — the word whose span sits nearest the cursor word’s
     column, blank lines crossed the way `w` crosses them. The plain
     `h j k l o i` are REPLACED, not aliased — `C-m C-o` is not the same
     as `C-m o` — a plain letter is a key the mode does not know. In
-    `foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is
-    `foo(baz, bar)` — the args
+    `foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is `foo(baz, bar)` — the args
     trade places, the punctuation does not move, everything around both
     words stays exactly what it was. On a gap — whitespace, a comma —
     the words AROUND it are the pair (Emacs’ rule), `C-h` and `C-l`
@@ -202,8 +197,7 @@ HOW IT ENDS — KEEP, UNDO, EXCHANGE *gliter.move-gliter.move-how-it-ends-—-ke
     selection back to where it started before anything is marked. The
     second `<C-x>` — pressed in the mode again
     (`C-m`, moves, `<C-x>`), on a plain Visual selection, or from
-    normal mode — swaps the two areas, whatever each side selected;
-    moves made before it are undone the same
+    normal mode — swaps the two areas, whatever each side selected; moves made before it are undone the same
     way. From normal mode the four DIRECTION keys are spelled with the
     Ctrl on: `C-x C-h/j/k/l` swaps with the word before, the word
     after, the line below, the line above — the mode’s own directions,
@@ -212,17 +206,16 @@ HOW IT ENDS — KEEP, UNDO, EXCHANGE *gliter.move-gliter.move-how-it-ends-—-ke
     every other motion aims natively: `C-x w`, `C-x f{char}`, `C-x $`,
     `C-x gg` and the rest, the motion’s own span.
 
-A MIXED pair swaps too — a block against a word, a span or a line,
-    whatever each side selected: the word lands in the rectangle’s
-    top-left (the word right on the block’s own top row trades inside
-    that row, the span path’s own shape), and the rectangle’s rows are
-    carried into the word’s place — a span’s row count follows the
-    text, the row splitting under the pieces; a line range’s rows are
-    the text; the rectangle’s other rows keep the blank the cut
-    leaves. A marked block highlights the RECTANGLE it selected — one
-    mark per row, each that row’s own slice — never the diagonal a
-    single mark would light (a block that reads as turned into a
-    plain Visual selection the moment `<C-x>` is pressed on it).
+A MIXED pair swaps too — a block against a word, a span or a line, whatever
+each side selected: the word lands in the rectangle’s top-left (the word
+right on the block’s own top row trades inside that row, the span path’s
+own shape), and the rectangle’s rows are carried into the word’s place —
+a span’s row count follows the text, the row splitting under the pieces; a
+line range’s rows are the text; the rectangle’s other rows keep the blank
+the cut leaves. A marked block highlights the RECTANGLE it selected — one
+mark per row, each that row’s own slice — never the diagonal a single mark
+would light (a block that reads as turned into a plain Visual selection the
+moment `<C-x>` is pressed on it).
 
 A pending exchange does not wait forever: `<Esc>` and `<C-c>` cancel it (normal
 or Visual mode — abandoning the second selection counts), and so does
