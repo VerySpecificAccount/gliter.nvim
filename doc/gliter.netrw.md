@@ -5,16 +5,19 @@ every netrw buffer, window and tab page, one-key commands that act on them,
 nine numbered bookmarks that survive restarts, marking by regexp with a live
 highlight, in-place editing of the listing itself: add,
 remove and rename files and directories by editing the buffer text, and a
-custom listing style — any shell command's output (`ls -ltrhF`, `ls -d */`)
-replacing the listing netrw draws. It does
-not replace netrw.
+custom listing style — any shell command's output (`ls -ltrhF`, `ls -d */`,
+`tree`, `fd .`), in color like dired, replacing the listing netrw draws. It
+does not replace netrw.
 
-> **Neovim 0.13+ note.** Neovim is growing a new built-in directory browser
-> (`nvim.dir`, filetype `directory`) that replaces netrw when it is finished;
-> this module rides on classic netrw and stays out of the way when `nvim.dir`
-> has taken the buffer. To keep using netrw — and this module with it — set
-> `let g:loaded_nvim_dir_plugin = 1` (init.vim) or
-> `vim.g.loaded_nvim_dir_plugin = 1` (init.lua, early) before startup.
+> **Neovim 0.12+ note.** Neovim ships its own directory browser (`nvim.dir`,
+> filetype `directory`) that competes with netrw for directories — whichever
+> grabs the directory first wins, and an `nvim.dir` buffer is not a netrw
+> buffer, so nothing here applies to it. This module is built on netrw, so
+> `setup()` claims directories for it: netrw's handlers are made sure to
+> exist and the `nvim.dir` autocommands are dropped (never leaving a
+> directory unhandled), and stale `directory` buffers a `<CR>` would land on
+> are wiped so netrw lists the directory fresh. To hand directories back to
+> `nvim.dir`, don't set up this module.
 
 ## Stolen from Emacs
 
@@ -74,9 +77,11 @@ Marks are single-key actions: `y`, `m`, `d` and `z` act at once, with no second
 key to type. Because of that, keys that start with a mark letter cannot be
 reached in netrw buffers: netrw's `m`-prefixed keys (`mf`, `mt`, ...), and Vim's
 `ZZ`/`ZQ` under the default `Z`. Marks are shared across every netrw window and
-tab page — until a window switches to another directory: the marks are
-forgotten then (they belong to the listing you set them on; a refresh, sort or
-style change of the same directory keeps them). Marking an entry again with
+tab page, and they follow the window that browses: `y` here, `<CR>` into a
+subdirectory, `p` pastes into the directory you are in (a refresh, sort or
+style change of the same directory keeps them too, of course;
+`keep_marks = false` forgets them on a directory switch instead, so a stale
+set is never pasted into an unrelated directory). Marking an entry again with
 the same key unmarks it; marking it with
 another key changes its kind. After a single-entry toggle the cursor moves down
 one line, like fff.nvim. Marked lines are highlighted — copy, move, delete,
@@ -124,6 +129,7 @@ cursor when nothing of that kind is marked.
 | `F` | **file report**: run the `file` command on the entry under the cursor and show its report in a floating window — what the thing is, and the details `file` has to tell about it (the magic behind the name, the mime type). `q`, `<Esc>` or `<CR>` closes the float; on a custom listing `qf` — netrw's own file-info key, which cannot read the custom text — does the same |
 | `+` | **create** a file, or a directory when the name ends in `/` (parents included) |
 | `<C-g>` | **cd**: make the directory listed here the current working directory (a global `:cd`; netrw's own `c` is a window-local `:lcd`) |
+| `i` | netrw's own listing key, **grown by one slot**: the cycle thin > long > wide > tree continues into the custom listing (when one is configured) and back to thin — installed through `g:Netrw_UserMaps`, so netrw itself re-installs it on every browse (see the section below) |
 
 Inside netrw buffers these take over netrw's own bindings for the same letters
 (`C`, `R`, `D`, `S`, `x`, and `%` — removed so the `%<mark>` sequences can
@@ -194,26 +200,86 @@ buffer already carries its name — and gliter attaches its keys and
 decorations to the buffer it lands on, so it is a gliter.netrw buffer like
 any other: same keys, same marks, same decoration.
 
-## The custom listing (`listing`)
+## The custom listing (`listing`, on netrw's `i` cycle)
 
-`setup { listing = 'ls -ltrhF' }` replaces the listing netrw draws with
-the output of a shell command of your choosing — run in the listed
-directory, through your `shell`, its stdout becoming the listing:
+`setup { listing = 'ls -ltrhF' }` arms a listing of your own: the output
+of a shell command, run in the listed directory, through your `shell`,
+its stdout becoming the listing —
 
     require('gliter.netrw').setup {
-      listing = 'ls -ltrhF',     -- newest last, with the details
-      -- listing = 'ls -d */',  -- directories only
+      listing = 'eza -l',               -- the details, the modern way
+      -- listing = 'eza -l --icons --git', -- the works
+      -- listing = 'ls -ltrhF',         -- newest last, with the details
+      -- listing = 'ls -d */',           -- directories only
       -- listing = 'ls -la --group-directories-first',
-      -- listing = 'exa --git --icons',   -- anything that prints names
+      -- listing = 'tree -F --dirsfirst', -- an outline:
+      --   ├── deep/
+      --   │   └── one.txt        (depths are read; Enter opens one.txt)
+      -- listing = 'fd . --no-ignore',   -- everything under, paths and all
+      --   (needs listing_paths = true, see below)
     }
 
-The banner above the listing stays netrw's own — the directory's name, the
-quick help, `I`'s toggling — so the buffer still says where it is. The
-command runs whenever netrw lists: on opening a directory, on every re-list
-(`i`, `s`, `r`, `<C-l>`, a focus change, the refresh after a gliter
-operation). A failed command falls back to netrw's own listing with a
-notice — a typo'd flag never blanks the buffer — and is retried on the next
-re-list.
+— and the switch is **netrw's own `i`**, grown by one slot: netrw
+cycles its listing styles thin > long > wide > tree, and the custom
+listing is the slot after tree — `i` steps into it, `i` again steps
+back to thin. The key is installed through `g:Netrw_UserMaps` — netrw
+reads that list and installs the entries after its own maps on every
+browse, so there is no race and nothing to re-arm on a re-list. The
+window stays with the slot it is in across re-lists (`s`, `r`,
+`<C-l>`, a focus change, the refresh after a gliter operation re-render
+whichever is on) **and across directories**: a window whose listing is
+custom browses into a subdirectory and the custom listing follows —
+Enter in the custom listing does what Enter does in netrw's own, one
+key, one finished buffer. The choice lives in the window (the window is
+what stays; netrw churns a buffer per directory). With no `listing`
+configured the cycle is netrw's own four styles, untouched — its
+banner toggle `I` included, always.
+
+**`listing_default`** starts every new netrw window in the custom
+slot, as if `i` had been cycled into it the moment the window opened:
+
+    require('gliter.netrw').setup {
+      listing = 'eza -l',
+      listing_default = true, -- on from the start; `i` still cycles
+                              -- away (and back) per window — a window
+                              -- that left the slot keeps its choice
+    }
+
+The banner above the listing stays netrw's own — the directory's name,
+the quick help — so the buffer still says where it is. A failed command
+falls back to netrw's own listing with a notice — a typo'd flag never
+blanks the buffer — and is retried on the next re-list (and on the next
+`<CR>` visit of a directory whose buffer netrw reused without one: the
+visit itself is the retry, once per visit). A command that
+succeeds but prints nothing the parser can read (a broken flag, an
+unknown column layout, everything on stderr) falls back the same way:
+the listing is judged by what the parser finds in it, and a listing
+with no entries in a non-empty directory is put back on netrw's own
+with the reason said once.
+
+**Colors, the way dired shows them.** A known command is asked for its
+colored output — `ls -ltrhF` runs as `ls -ltrhF --color=always`, `tree
+--dirsfirst` as `tree --dirsfirst -C`, `fd`/`eza`/`grep` the same — when
+the listing command carries no color flag of its own (`--color=never`
+is obeyed; `listing_color = false` turns the adding off). The ANSI
+escape sequences are taken out of the text and laid back as highlights
+over exactly the bytes they colored: the listing shows its colors the
+way a terminal does, the way Emacs' dired shows `ls --color=always` —
+and, by default, softened: every color is muted into a background-aware
+pastel first (see `soft_colors` below), so the listing wears dired's
+calm instead of the terminal's neon.
+And it is not limited to `ls`: any command's ANSI output — `fd .`,
+`rg --files` — is read the same way. The SGR codes covered: the
+attributes, the sixteen palette colors (xterm's standard RGB), the
+256-color cube and truecolor. The parser and every key read the plain
+text — a `/` search matches the clean name — and where an entry
+carries a gliter mark, the mark's highlight names the reason the entry
+is lit. netrw's own listing colors (netrwDir, netrwExe, ...) are fitted
+to the shapes netrw itself draws — on another command's text they
+misfire (an `ls -lF` directory line is one long token ending in `/`,
+and the whole line lights up; an executable's line lights up from its
+middle on) — so while the custom listing is on they are stood down,
+and they come back with netrw's own listing when `L` turns it off.
 
 Everything keeps working on the custom text, because the parser (not
 netrw's line-reading) finds the entries: marks and their highlights, the
@@ -222,9 +288,46 @@ edit mode — and the entry under the cursor is the one the click or the
 cursor column is on, in long listings too. The formats the parser reads:
 `ls`'s classify suffixes (`dir/`, `link@`, `file*`, `fifo|`, `socket=`),
 the comma stream of `-m`, the columns of `-C`/`-x`, the long format of
-`-l` (with or without `-h`, `--si`, `-a`, `-t` and friends), and plain
+`-l` (with or without `-h`, `--si`, `-a`, `-t` and friends), plain
 one-per-line — plus a symlink's ` -> target` tail, which reads as the
-link.
+link — and `tree`'s outline: `├── name` under `│`-indentation (tree 2.x
+prints non-breaking spaces there; the parser reads both those and the
+plain ones, and `--charset=ascii` too), the depth telling the parent, a
+`tree -F` classify suffix read like `ls`'s, `tree sub`'s root line naming
+the directory the outline hangs from, and the summary tree trails with
+never an entry.
+
+**Opening what the listing prints.** Enter (and `o`, `v`, `t`, `P`, the
+mouse keys, the preview key) opens the entry the parser found under the
+cursor — a file, or a directory (a directory opens as a listing, and the
+window's `L` choice follows into it: a custom-listing window browses into
+the subdirectory and the custom listing is rendered there before the
+keypress is over). The choice follows into the window the entry opens
+in, too — a new tab (`t`), the previous window (`P`): a window that has
+made no `L` choice of its own inherits the one the entry was opened
+from, so the listing comes up custom there as well, and a window that
+has chosen — `L` off, or on — keeps its own. Commands that print paths *under* the listed directory —
+`fd .`'s `sub/file.lua`, `git ls-files`, `find .` — name no entry of it,
+so with the default `listing_paths = false` those lines stay inert
+(text you can read and search, nothing that opens). Turn it on:
+
+    require('gliter.netrw').setup {
+      listing = 'fd . --no-ignore',
+      listing_paths = true,   -- a line that names no entry is read as
+                               -- a path under the directory — and opens
+    }
+
+The filesystem decides: a token becomes an entry only when a file
+really sits where it points (a leading `./` is dropped, `ls`'s classify
+suffixes are read the same way), so `ls -l`'s metadata never parses as
+anything. A name a listing command quotes — `'my dir'`, `'it'\''s'`,
+`my\ dir`, the forms eza, exa and GNU ls print for anything a shell
+would read specially — comes back through the shell's quoting rules
+first, so Enter, the marks and every other key open and act on the file
+the quotes wrap. `.` and `..`, when the listing prints them (`ls -la`
+does, `eza -l` does not), are entries Enter browses — `..` up, `.` a
+re-list — the way netrw's own Enter does; the marks and the one-key
+commands leave them alone.
 
 netrw's own keys that take the entry off the line cannot read the custom
 text — `ls -l`'s columns are not a file name — so on a custom-listing
@@ -232,14 +335,13 @@ buffer they are replaced by parser-driven versions (`<CR>`, `o`, `v`, `t`,
 `P`, the mouse keys, the preview key open or preview what the parser
 found; `qf` shows the `F` float) or removed (`mf` and netrw's other
 line-reading keys, which would act on the metadata as if it were a name).
-netrw re-installs them with its next re-list of a plain style. And because
-the custom text is flat, the window's style is pinned to thin: `i` re-lists,
-and the custom listing comes back — the styles are the `listing` option's to
-replace, so with one set, `i` has no visible effect (`I`'s banner toggle is
-netrw's own and still works).
+netrw re-installs them with its next re-list of a plain style. And
+because the custom text is flat, the window's style is pinned to thin
+while the custom listing is on, so netrw's root tracking stays honest.
 
 With `listing` unset (the default) netrw's own listings and styles are
-untouched, and none of the above applies.
+untouched, `i` keeps its own four-style cycle, and none of the above
+applies.
 
 ## Editing the listing in place (`E`)
 
@@ -300,6 +402,28 @@ create). A line that merely repeats an existing entry's name is not `[new]`
 — that is what a re-rendered listing looks like, and `:w` will refuse it
 (claimed twice), not create over it. They update live as you edit; set any
 entry in `indicators` to `false` to hide it.
+
+## Every netrw buffer gets its keys
+
+The keys, the marks, the custom listing attach wherever a netrw buffer
+comes from, by announcement (the filetype, a buffer or window being
+entered, the listing's lines changing) — and by a safety net under all
+of them: whenever Vim comes back to waiting for input, the buffer in the
+window is checked, and a netrw listing this plugin has not settled yet
+is settled right there. That covers the one path no announcement covers
+— netrw's buffer reuse (`g:netrw_fastbrowse` at its default 2 skips the
+re-list for a directory whose buffer still exists, and switches to it
+with every event ignored: no FileType, no BufEnter, not one line
+touched) — and anything else that ever manages to list a buffer
+quietly. Enter into a directory, `u` back through history, a bookmark
+jump, a `:b` to a netrw buffer by hand: the listing that comes up is a
+gliter.netrw one, always.
+
+A listing command that fails (a typo, a command not on this machine's
+PATH) is reported once per failure — netrw re-lists its buffers often,
+and one notice per re-list for the same broken command reads as an error
+loop — and retried silently on every re-list, so the listing comes back
+by itself when the command heals.
 
 ## Keys
 
@@ -377,9 +501,35 @@ slot can be switched off by setting its entry in `bookmark_jump` to `false`.
                            -- marks with, until a `*<mark><family>` press
                            -- changes it
       conflict = 'ask',    -- 'ask' | 'overwrite' | 'skip' | 'rename' on paste
-      listing = nil,       -- a shell command whose output replaces the
-                           -- listing: 'ls -ltrhF', 'ls -d */', ... — nil
-                           -- (or false) keeps netrw's own listings
+      listing = nil,       -- a shell command whose output becomes the
+                           -- listing on `L`: 'eza -l', 'ls -ltrhF',
+                           -- 'ls -d */', 'tree -F --dirsfirst',
+                           -- 'fd .', ... — nil (or false) keeps netrw's
+                           -- own listings
+      listing_default = false, -- start every new netrw window in the
+                           -- custom slot, as if `i` had been cycled
+                           -- into it; `i` still cycles away (and
+                           -- back) per window — a window that left
+                           -- the slot keeps its choice
+      keep_marks = true, -- keep the marks when a window browses into
+                           -- another directory (default true: `y` here,
+                           -- <CR> there, `p` pastes into the directory
+                           -- you are in; false forgets them on a switch,
+                           -- so a stale set is never pasted into an
+                           -- unrelated directory)
+      listing_color = true, -- ask known commands for colored output
+                           -- (ls --color=always, tree -C, ...) when the
+                           -- command carries no color flag of its own;
+                           -- any command's ANSI escapes become highlights
+      listing_paths = false, -- read a line that names no entry of the
+                           -- listed directory as a path under it, so
+                           -- `fd .`'s `sub/file.lua` opens
+      soft_colors = true, -- soften the colors, dired-style: netrw's own
+                           -- listing groups (netrwDir, netrwExe, ...) and
+                           -- every ANSI color a custom listing command
+                           -- sends are muted into a background-aware
+                           -- pastel. false puts everything back exactly
+                           -- as it was
       indicators = {       -- the [tag] next to marked lines; false hides one
         copy = '  [copy]',
         move = '  [move]',

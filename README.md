@@ -126,9 +126,33 @@ require('gliter').setup {
     },
     edit = { confirm = true },   -- ask before applying edits with :w
     notify_level = vim.log.levels.INFO,
-    listing = nil,               -- a shell command whose output replaces
-                                 -- the listing: 'ls -ltrhF', 'ls -d */',
-                                 -- ... — nil keeps netrw's own listings
+    listing = nil,               -- a shell command whose output becomes
+                                 -- the listing on netrw's `i` cycle (the
+                                 -- slot after tree): 'eza -l',
+                                 -- 'ls -ltrhF', 'ls -d */',
+                                 -- 'tree -F --dirsfirst', 'fd .', ...
+                                 -- — nil keeps netrw's own listings, and
+                                 -- the defaults untouched
+    listing_default = false,    -- start every new netrw window in the
+                                 -- custom slot, as if `i` had been cycled
+                                 -- into it; `i` still cycles away (and
+                                 -- back) per window — a window that left
+                                 -- the slot keeps its choice
+    keep_marks = true,           -- keep the marks when a window browses
+                                 -- into another directory (default true:
+                                 -- `y` here, <CR> there, `p` pastes into
+                                 -- the directory you are in; false
+                                 -- forgets them on a switch, so a stale
+                                 -- set is never pasted into an unrelated
+                                 -- directory)
+    listing_color = true,        -- ask known commands for colored output
+                                 -- (ls --color=always, tree -C, ...) when
+                                 -- the command carries no color flag of
+                                 -- its own; any command's ANSI escapes
+                                 -- become highlights, like dired
+    listing_paths = false,       -- read a line that names no entry of the
+                                 -- listed directory as a path under it,
+                                 -- so `fd .`'s `sub/file.lua` opens
     native_unmap = { 'gR', '+', '%' }, -- netrw keys removed in netrw buffers
   },
   undotree = {
@@ -321,17 +345,23 @@ require('gliter').setup {
       zig = 'zig build',
       -- python = 'python -m py_compile %',  -- syntax check only
       python = 'pypy3 %',        -- run the file: real tracebacks
+      sh = 'sh %',               -- run the script — beats the sh ftplugin's
+                                 -- own `compiler bash` (bash -n, a shell
+                                 -- that reads its script off stdin forever)
       tex = 'latexmk -pdf -interaction=nonstopmode %',
     },
-    errorformats = {             -- 'errorformat' per filetype: a LIST, each
-                                 -- entry tried on a line of its own before
-                                 -- Vim's default (like Emacs'
-                                 -- compilation-error-regexp-alist; a merged
-                                 -- format cannot backtrack — the bare
-                                 -- `File "x.py", line 2` of python syntax
-                                 -- errors needs its own try)
+    errorformats = {             -- 'errorformat' per filetype — or per
+                                 -- program, keyed by the makeprg's first
+                                 -- word: a LIST, each entry tried on a line
+                                 -- of its own before Vim's default (like
+                                 -- Emacs' compilation-error-regexp-alist;
+                                 -- a merged format cannot backtrack — the
+                                 -- bare `File "x.py", line 2` of python
+                                 -- syntax errors needs its own try)
       rust = { '%E%.%#-->\\ %f:%l:%c,%Wwarning:%m' },
       python = { '  File "%f"\\, line %l%.%#' },
+      love = { 'Error: Syntax error: %f:%l: %m',
+               'Error: %f:%l: %m' },  -- love2d (`love .`)
     },
     height = 12,                 -- output window height
     ansi = true,                 -- render the output's ANSI colors
@@ -453,6 +483,65 @@ require('gliter').setup {
                                  -- width)
     },
     width = nil,                 -- nil: 'textwidth' when nonzero, else 80
+  },
+  move = {                       -- a visual move mode: carry the selection
+                                 -- with nvim-gomove's engine, plus the
+                                 -- goto motions and the jumps
+    keys = {
+      mode = '<C-m>',            -- x: enter the move mode on the selection;
+                                 -- then h j k l move it (counts work),
+                                 -- 0/$/gg/G/f/t/F/T carry it toward an
+                                 -- edge or a char, w/e/b/W/E/B toward
+                                 -- the words ROW-FIRST — the cursor's
+                                 -- own line's words first, then the
+                                 -- NEXT BIGGEST LINE (the next row
+                                 -- that still reaches past the edge),
+                                 -- the walk going all the way to the
+                                 -- RIGHT END of the LONGEST LINE
+                                 -- covered (b back to the line's own
+                                 -- beginning, all the way to 0) —
+                                 -- and o/O change the moving corner
+      normal = '<C-m>',          -- n: the mode — C-h C-j C-k C-l
+                                 -- transpose the adjacent words in
+                                 -- that direction (once), C-o/C-i
+                                 -- walk THIS FILE's jumps, repeatable
+                                 -- inside one <C-m> — the plain
+                                 -- h j k l o i are replaced, not
+                                 -- aliased (C-m C-o is not the same
+                                 -- as C-m o) (false keeps Enter)
+      confirm = '<C-t>',        -- in-mode: keep the moves
+      exchange = '<C-x>',        -- in-mode / x: mark an exchange area,
+                                 -- then swap — a pending wait also takes
+                                 -- C-x C-h/j/k/l (the word/line the
+                                 -- direction names) and any motion from
+                                 -- normal mode; a move made before the
+                                 -- press is undone first; Vim's own
+                                 -- normal-mode <C-x> is never
+                                 -- shadowed. A MIXED pair swaps too —
+                                 -- a block against a word or a line:
+                                 -- the word lands in the rectangle's
+                                 -- top-left, the rectangle's rows
+                                 -- carried into the word's place;
+                                 -- both on one row, the swap happens
+                                 -- inside that row. For richer
+                                 -- exchanges use mizlan/iswap.nvim
+    },
+    hint = true,                -- echo the keys while the mode runs
+    reindent = false,           -- gomove's option: reindent lines after a
+                                 -- vertical line move
+    move_past_end_col = true,   -- gomove's option: a block may slide past
+                                 -- the end of the shortest row it covers
+    jumps = {                    -- <C-m>C-o / <C-m>C-i
+      scope = 'file',            -- 'file': Vim's own jump list walked
+                                 -- with only this file's entries — a
+                                 -- jump that went to another file is
+                                 -- skipped, never taken; 'own': a
+                                 -- separate jump list per file (Vim's
+                                 -- jump records, bucketed per file,
+                                 -- each list keeping its place while
+                                 -- you walk another file's)
+      max = 100,                 -- 'own' only: each file's list depth
+    },
   },
   matchit = {                    -- % for keywords
     keys = {
@@ -602,7 +691,7 @@ and full documentation in `doc/gliter.<name>.md`.
 
 | Module | Needs | Adds | Stolen from |
 | ------ | ----- | ---- | ----------- |
-| [`gliter.netrw`](#gliternetrw) | Neovim 0.12+ | marks, bookmarks, one-key commands, regexp marking with a live highlight, in-place editing and a custom listing style (`ls -ltrhF`, `ls -d */`) for the built-in netrw | dired (1986) + wdired |
+| [`gliter.netrw`](#gliternetrw) | Neovim 0.12+ | marks, bookmarks, one-key commands, regexp marking with a live highlight, in-place editing and a custom listing style (`eza -l`, `ls -ltrhF`, `ls -d */`, `tree`, `fd .`) in color like dired, on netrw's own `i` cycle (the slot after tree) — on from the start with `listing_default` — for the built-in netrw, plus softened, dired-calm colors everywhere | dired (1986) + wdired |
 | [`gliter.undotree`](#gliterundotree) | Neovim 0.12+ | a `<Leader>u` toggle, colors and a bottom diff window for the built-in `:Undotree` | undo-tree (2009) |
 | [`gliter.multicursor`](#glitermulticursor) | Neovim 0.13+ | keys for the built-in multicursors: `<M-i>` puts one on every line of the selection, `<Leader>cj`/`<Leader>ck` place one and step, `<M-a>` on every occurrence, `<C-n>`/`<C-p>` walk them, `<C-s>`/`<C-m>` skip, `<C-b>`/`<C-f>` remove one | multiple-cursors (2012) |
 | [`gliter.treesitterRE`](#glitertreesitterre) | Neovim 0.9+ | expand-region: one key grows the selection up a semantic ladder (parser optional) | expand-region (2011) |
@@ -613,6 +702,7 @@ and full documentation in `doc/gliter.<name>.md`.
 | [`gliter.sessions`](#glitersessions) | Neovim 0.9+ | `:mksession` with a memory: `<Leader>ss` saves the session into its project and remembers it, `<Leader>sl` lists every known session in a float — `<CR>` activates, `d` deletes, saving again updates | desktop.el (1990s) |
 | [`gliter.readme`](#gliterreadme) | Neovim 0.9+ | `<Leader>rr` opens (or creates) the project's readme — the name is an option — and `<Leader>rl` lists every readme you touched, most recent first: `<CR>` opens, `<C-t>`/`<C-w>`/`<C-v>` open it in a tab or a split, `d` forgets | recentf (2002) |
 | [`gliter.justify`](#gliterjustify) | Neovim 0.9+ | `g=` and `:GliterJustify`: reflow the paragraph (or the selection, or a range) to the width and justify it — both margins flush, the last line ragged | fill.el (1980s) + justify.vim (1998) |
+| [`gliter.move`](#glitermove) | Neovim 0.10+ | a visual move mode with nvim-gomove's engine: `<C-m>` turns the selection into a thing `h j k l` carry (counts work); `0`/`$` slide it flush to the line's edges, `gg`/`G` to the buffer's, `f`/`t` carry it toward a char ahead, `F`/`T` behind (stopping one short with `t`/`T`); `o`/`O` change the moving corner; the word motions `w`/`e`/`b`/`W`/`E`/`B` carry it line-wise ROW-FIRST — the cursor's own line's words first, then the NEXT BIGGEST LINE (the next row that still reaches past the edge), the walk going all the way to the RIGHT END of the LONGEST LINE covered (`w` onto the next word's first character, `e` its end, `b` back onto the previous word's first and on to the line's beginning, all the way to 0; `W`/`E`/`B` the WORD twins; a `V` selection is carried by columns, `b`'s floor the full dedent); from normal mode `<C-m>` is a MODE: `C-h`/`C-j`/`C-k`/`C-l` transpose the adjacent words in that direction (once, `[count]` bubbles — the plain `h j k l o i` are replaced, not aliased) and `C-o`/`C-i` walk THIS FILE's jumps only — Vim's own jump list, the entries of other files skipped, never taken, the cursor landing on each, every press another step (a `jumps.scope = 'own'` option keeps a separate jump list per file instead); the SCREEN cursor stays in the buffer the whole time — on the selection, on the jump — never on the message line under the hint; in-mode `C-t` keeps the moves, `<Esc>` undoes them all at once, `C-x` marks and swaps two areas — a move made before the press is undone first (the trade is of what was SELECTED), and the second area is a Visual selection, `C-x C-h/j/k/l` (the word before, the word after, the line below, the line above) or any motion: `C-x{motion}` — a block against a word or a line swaps too, the word landing in the rectangle's top-left and the rectangle's rows carried into the word's place | transpose-words / `M-t` + transpose-lines / `C-x C-t` (1980s) + gomove (2021) + vim-exchange (2013) |
 | [`gliter.matchit`](#glitermatchit) | Neovim 0.9+ | `M` (the key you gave `%`) jumps between the words that bracket a block — `if`/`end`, `function`/`endfunction`, `<div>`/`</div>` — nesting counted; `gM` the other way; plain `%` on everything else | matchit.vim (1996) |
 | [`gliter.tohtml`](#glitertohtml) | Neovim 0.10+ | `:GliterTohtml`: the buffer (or the selection) out as HTML with its syntax colors, as Markdown, or as PDF typeset by groff | 2html.vim (2001) + htmlize.el (1997) + troff (1973) |
 | [`gliter.w3`](#gliterw3) | Neovim 0.10+ | the web in a buffer: `:GliterW3 <url>` — curl fetches and pandoc renders the page (lynx without pandoc, w3m with the links taken out of the html, wls lists the site); links followable from the keyboard while a spinner covers the load, `]l`/`[l` walk them, `gl` quickfixes them, `H` goes back, `R` reloads, keywords search DuckDuckGo | W3 (1993) → eww (2013) → viww (2026) |
@@ -765,6 +855,23 @@ Vim or Neovim thing it inspired, usually by a decade or more:
   paragraph stays ragged. gliter.justify is the two halves together:
   `g=` reflows the way `M-q` fills, then justifies every line but the
   last.
+* **transpose-words / transpose-lines (1980s) / drag-stuff (2010) /
+  nvim-gomove (2021) → gliter.move.** The features themselves are
+  Emacs': `C-x C-t` has swapped the line under point with the one above
+  it since the eighties — before Vim existed — and `M-t` swapped the
+  words around point just as long; rejeep's drag-stuff (2010) turned
+  the swap into a carry: `M-<up>` and `M-<down>` take the line — or the
+  region — along, as long as you hold them. booperlv's nvim-gomove
+  (2021) made the carry shape-honest on the Vim side (lines, blocks,
+  the indent drag, folds); gliter.move ports that engine whole and
+  condenses it into a mode: one key, and `h j k l` move what they
+  selected, `0 $ gg G f t F T` and the word motions carry it to a place
+  the way a motion takes the cursor, and from normal mode `<C-m>` is a
+  mode too: `C-m C-hjkl` transposes words — Emacs'
+  `M-t` on Vim's own words, so arguments trade places — and `C-m C-o`/
+  `C-m C-i`
+  walk the remembered places (Vim's own jump list, this file's entries
+  alone).
 * **htmlize.el (1997) → 2html.vim (2001) → gliter.tohtml.** Hrvoje
   Niksic exported buffers with their faces to HTML in 1997; Bram
   Moolenaar's `:TOhtml` (2html.vim, 2001) did it for Vim and shipped for
@@ -866,6 +973,10 @@ gliter stands on the shoulders of:
 * [justify.vim](https://github.com/vim/vim/blob/master/runtime/pack/dist/opt/justify/plugin/justify.vim)
   (Preben "Peppe" Guldberg, 1998) — the space distribution gliter.justify
   puts on top of the reflow
+* [echasnovski/mini.move](https://github.com/echasnovski/mini.move) (2022) —
+  the proof that any Visual selection can be dragged with four keys
+* [Drag-Viz / dragvisuals.vim](https://github.com/vim-scripts/Drag-Viz)
+  (Michael Henry, 2006) — the blockwise drag gliter.move's block moves descend from
 * [Vigemus/iron.nvim](https://github.com/Vigemus/iron.nvim) (2017) — the
   per-filetype REPL sending gliter.repl follows
 * [rockerBOO/awesome-neovim](https://github.com/rockerBOO/awesome-neovim)
@@ -892,10 +1003,17 @@ editable buffer — add, remove and rename by editing the text, apply with
 `:w`. `!` runs a shell command on the marked entries in a terminal window
 (interactive commands — sudo's password — included), `x` runs it one entry
 at a time, and `F` shows the `file` command's report on the entry under the
-cursor in a floating window. `setup { listing = 'ls -ltrhF' }` replaces the
-listing netrw draws with any shell command's output — `ls -d */` for
-directories only — with every feature still reading it. It does not replace
-netrw.
+cursor in a floating window. `setup { listing = 'eza -l' }` arms a custom
+listing — any shell command's output, on netrw's own `i` cycle (grown by
+one slot: thin > long > wide > tree > yours), every window starting on
+netrw's own unless `listing_default = true` starts it on yours — shown in
+color the way dired shows it (known commands are asked for `--color=always`,
+any command's ANSI escapes become highlights): `ls -ltrhF` for the classic
+details, `ls -d */` for directories only, `tree -F --dirsfirst` for an
+outline, `fd .` with `listing_paths = true` for everything under with its
+paths — and every feature still reads it, `<CR>` included: a directory
+browsed from the custom listing keeps the custom listing. It does not
+replace netrw.
 
 Full documentation: [doc/gliter.netrw.md](doc/gliter.netrw.md).
 
@@ -950,10 +1068,16 @@ Per-filetype `'makeprg'` and Emacs' `*compilation*` buffer for
 `:make`'s machinery (Neovim 0.9+): the output streams into a bottom window in
 terminal colors (run under a pty, the way Emacs' compile does), the command
 is echoed at the top, jumps land on the exact character whatever the
-errorformat said, and the same errors fill the quickfix. `<Leader>lm` runs
+errorformat said, and the same errors fill the quickfix — per-filetype and
+per-program errorformats (`love` for a love2d project's `love .` included)
+run before Vim's default, which stays the `file:line:col` fallback.
+`<Leader>lm` runs
 it, a second press restarts — and a runner runs the file (`<Leader>lr`), the
 Visual selection, a grep (`<Leader>lp`) or a shell through one settable
-output function.
+output function. `'makeprg'` being an ordinary option, Vim's own asking
+idiom works verbatim — `:let &makeprg = input('Enter make command: ') |
+GliterMake` prompts, sets, runs, and the quickfix fills with the
+jump-to locations.
 
 Full documentation: [doc/gliter.make.md](doc/gliter.make.md).
 
@@ -1011,14 +1135,104 @@ the way a justified paragraph in a book does. On a Visual selection, or a
 
 Full documentation: [doc/gliter.justify.md](doc/gliter.justify.md).
 
+## gliter.move
+
+A visual move mode (Neovim 0.10+): `<C-m>` on any Visual selection —
+charwise, linewise or blockwise — turns it into a thing `h j k l`
+carry around the buffer (counts work: `3j` is three rows), the moving
+engine [nvim-gomove](https://github.com/booperlv/nvim-gomove)'s,
+ported in. Nothing is ever destroyed: a sideways block passes over the
+characters it crosses (they trade places — `abXYcd`, block on `XY`,
+`l` → `abcXYd`), a vertical block is inserted at its landing rows so
+their text shifts aside, and short rows are padded where a block needs
+room to land (the padding comes back when it leaves); linewise `h`/`l`
+are the classic indent drag; a charwise span
+over several rows moves whole lines from the left edge, its corner
+rectangle otherwise. The goto motions carry the selection to a place
+the way a motion takes the cursor: `0`/`$` slide it flush to the line's
+left/right edge, `gg`/`G` carry the lines or block to the buffer's
+top/bottom (`{count}gg` lands on line `{count}`), and
+`f{char}`/`t{char}`/`F{char}`/`T{char}` slide it toward a char ahead or
+behind (`t`/`T` stopping one short), and the word motions `w`/`e`/`b`/`W`/`E`/`B`
+carry it toward words LINE-WISE — the carry the slide, a word never
+taking the selection to another row: FORWARD is Vim's own direction,
+left to right, and the walk is ROW-FIRST — the words of the line the
+CURSOR is on (the first line, where the cursor was) are walked before
+any other's, and a vertical selection goes on to the NEXT BIGGEST LINE
+(the next row that still reaches past the edge), the walk continuing
+all the way to the RIGHT END of the LONGEST LINE covered and dead past
+it — `w` lands the right
+edge on the next word's first character, `e` on the next word-end, `b` the
+left edge on the previous word's first (`[count]` the Nth word;
+`W`/`E`/`B` the WORD twins — non-blank runs, punctuation riding along);
+`b` walks back the same way with a FLOOR:
+the beginning of the line — it keeps moving back until column 1, all
+the way to 0, and past it is dead; a line selection (`V`) is carried by
+COLUMNS — every line moves together, the walking edge the cursor row's
+own first word, and `b`'s floor the full dedent (every line to its own
+beginning). What the selection passes
+over shifts behind it, order intact, a line never scrambled. `o`/`O`
+change the moving corner. From normal mode `<C-m>` is a MODE — a
+getchar() loop that stays until it is left: one of
+`C-h`/`C-j`/`C-k`/`C-l` transposes WORDS — Emacs' `transpose-words` on Vim's own
+words (`'iskeyword'`): the word at the cursor trades places with the
+ADJACENT word the direction names — `C-l` the one after it, `C-h` the one
+before, `C-j`/`C-k` the word below/above (the one whose span sits nearest
+the cursor word's column, blank lines crossed) — so in `foo(bar, baz)`
+the cursor on `bar` and `<C-m>C-l` is
+`foo(baz, bar)` — args trade places, `[count]` bubbles the word along;
+the trade happens once and the mode is done with it (the old
+`<C-t>{direction}` spelling works the same; the plain `h j k l o i`
+are replaced, not aliased — `C-m C-o` is not the same as `C-m o`) —
+and `<C-m>C-o`/`<C-m>C-i` walk THIS FILE's jumps only: Vim's own
+jump list, the entries of other files skipped, never taken — a session
+of file1 > file2 > file1 walks file1's positions alone — the step
+itself native (the cursor lands on each jump, `[count]` locations at a
+time, and a
+step forward returns to where the walk began), every press another
+step, the keys mixed freely inside one `<C-m>` (`<C-m>i o o`
+steps forward one, back two; the old `<C-o>`/`<C-i>` spellings work the
+same); `jumps.scope = 'own'`
+keeps a separate jump list per file instead — every jump Vim records
+bucketed into its own file's list, each file's list outliving Vim's
+window-shared one and keeping its place while you walk another file's.
+The
+carry is an API too: `require('gliter.move').carry_to({ row, col })`
+aims it from anywhere — a flash.nvim label, say (the doc has the
+example). Three ways out, and
+two keep the move: `<C-t>` keeps it — the selection drops, normal mode on
+what moved; `<Esc>` (or `<C-c>`, or any key the mode does not know) is a
+cancellation — the buffer goes back to the state it had at entry (one
+`:undo {seq}` to the remembered undo number) and the cursor returns to
+where the mode was entered; `<C-x>` starts an
+exchange: the area stays highlighted, the mode exits to normal mode for
+picking the second area — a Visual selection, a motion after the
+normal-mode `<C-x>` the wait shadows in (`C-x C-h/j/k/l` for the word
+before, the word after, the line below, the line above; `C-x{motion}`
+for any motion) — and the next
+`<C-x>` swaps the two. A move made before an exchange's press is
+undone first: the trade is of what was SELECTED, not where a session
+carried it. Both `<C-x>`
+forms live inside the mode — Vim's own `<C-x>` is never shadowed. Use
+[gomove](https://github.com/booperlv/nvim-gomove) for duplication and
+stack moves, and [iswap.nvim](https://github.com/mizlan/iswap.nvim) for
+richer exchanges.
+
+Full documentation: [doc/gliter.move.md](doc/gliter.move.md).
+
 ## gliter.matchit
 
 `%` for keywords (Neovim 0.9+): `M` — the key you gave `%` —
 jumps between the words that bracket a block: `if`/`end` in Lua,
 `function`/`endfunction` in Vim script, `<div>`/`</div>`, with the nesting
-counted exactly the way `%` counts brackets. `gM` walks the other way; plain
-`%` keeps its job on everything else. Word chains for Lua, Vim script, shell
-and C/C++ ship built in, yours merge over them.
+counted exactly the way `%` counts brackets. `gM` goes to the outer level's
+group/match_word; `gm` cycles the chain's members with the middles included
+(`if` → `elseif` → `else` → `end` → `if` …); `]M`/`[M` hop to the
+neighboring groups' openers at the same level (`while 1<-if 2->function(3)`:
+from `if 2` back to the `while 1` of the group above, ahead to the
+`function(3` of the group below). Plain `%` keeps its
+job on everything else. Word chains for Lua, Vim script, shell and C/C++
+ship built in, yours merge over them.
 
 Full documentation: [doc/gliter.matchit.md](doc/gliter.matchit.md).
 

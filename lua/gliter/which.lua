@@ -43,6 +43,15 @@ M.defaults = {
   modes = { 'n', 'x' },
   border = 'rounded',
   max_height = 18,
+  -- Special buffers (netrw, a git plugin's, ...) map keys under our
+  -- prefixes buffer-locally — netrw's `gd`, `gb`, `gf`. Vim waits
+  -- `timeoutlen` for those longer maps before it runs our shorter global
+  -- trigger, and the popup would come a full second late, only in those
+  -- buffers. A second, buffer-local `nowait` copy of the trigger fires at
+  -- once: pick() reads the key that follows itself, so the maps it
+  -- shadows still run, fast typing never sees the popup, and a pause
+  -- shows it immediately. false keeps the global trigger alone.
+  buffer_local = true,
 }
 
 M.options = vim.deepcopy(M.defaults)
@@ -296,6 +305,62 @@ local function globally_mapped(lhs, mode)
   return false
 end
 
+--- The trigger's second home: a buffer whose plugin maps keys under one of
+--- the prefixes buffer-locally (netrw's `gd`, `gb`, `gf`; a git plugin's
+--- `]h`) delays the global trigger by `timeoutlen` — Vim waits for the
+--- longer buffer-local maps first — and a buffer-local `nowait` copy fires
+--- the moment the prefix is pressed. nowait is only honored for a mapping
+--- that is FOUND BEFORE any partial match, and mappings are searched with
+--- the last defined first — so the copy is set afresh every time (dropping
+--- our own earlier one first: a replaced mapping keeps its old place in
+--- the search order), and one event-loop turn after the other plugins'
+--- buffer maps went in. pick() reads what follows itself, so nothing is
+--- lost: the shadowed maps still run (their keys are handed back as typed
+--- input), fast typing never sees the popup, and a pause shows it at once —
+--- in every buffer, not just the plain ones.
+---@param buf integer
+local function attach_buffer_triggers(buf)
+  if not M.options.buffer_local then
+    return
+  end
+  vim.api.nvim_buf_call(buf, function()
+    for _, prefix in ipairs(M.options.prefixes) do
+      local raw = vim.keycode(prefix)
+      for _, mmode in ipairs(M.options.modes) do
+        local existing = vim.fn.maparg(prefix, mmode, false, true)
+        local mine = type(existing) == 'table' and existing.buffer == 1
+          and existing.desc ~= nil and existing.desc:find('^gliter%.which') ~= nil
+        local foreign = type(existing) == 'table' and existing.buffer == 1 and not mine
+        local continues = false
+        for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, mmode)) do
+          local lhs = m.lhsraw ~= '' and m.lhsraw or m.lhs
+          if #lhs > #raw and lhs:sub(1, #raw) == raw then
+            continues = true
+            break
+          end
+        end
+        -- bind only where the global trigger is ours (`bound` is the
+        -- record), where something continues it, and where no other
+        -- mapping owns the prefix in this buffer
+        if continues and not foreign and bound[mmode .. ':' .. raw] then
+          if mine then
+            pcall(vim.keymap.del, mmode, prefix, { buffer = buf })
+          end
+          vim.keymap.set(mmode, prefix, function()
+            pick(raw)
+          end, {
+            buffer = buf,
+            noremap = true,
+            silent = true,
+            nowait = true,
+            desc = 'gliter.which: the key popup (pause after the prefix)',
+          })
+        end
+      end
+    end
+  end)
+end
+
 function M.setup(opts)
   M.did_setup = true
   M.options = vim.tbl_deep_extend('force', vim.deepcopy(M.defaults), opts or {})
@@ -330,6 +395,32 @@ function M.setup(opts)
         })
         bound[mmode .. ':' .. raw] = true
       end
+    end
+  end
+  -- the buffer-local nowait copies (see attach_buffer_triggers): plugins
+  -- install their buffer maps around the buffer's FileType event, so the
+  -- attach runs two event-loop turns later — after their maps, whichever
+  -- setup order the plugins were set up in — and again whenever a plugin
+  -- re-announces the filetype (netrw does, on every re-list).
+  local group = vim.api.nvim_create_augroup('GliterWhich', { clear = true })
+  vim.api.nvim_create_autocmd('FileType', {
+    group = group,
+    callback = function(args)
+      vim.schedule(function()
+        vim.schedule(function()
+          if vim.api.nvim_buf_is_valid(args.buf) then
+            attach_buffer_triggers(args.buf)
+          end
+        end)
+      end)
+    end,
+  })
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) then
+      local b = buf
+      vim.schedule(function()
+        attach_buffer_triggers(b)
+      end)
     end
   end
   return M

@@ -4,8 +4,7 @@
 key you rebound `%` to — jumps between the words that bracket a block:
 `if` and `end` in Lua, `function` and `endfunction` in Vim script, `fi`
 closing shell's `if`, `#endif` closing `#ifdef`, `<div>` and `</div>` —
-with the nesting counted, exactly the way `%` counts brackets. `gM`
-(g%'s job) walks the other way.
+with the nesting counted, exactly the way `%` counts brackets.
 
 ```lua
 require('gliter').setup { matchit = {} }
@@ -15,16 +14,39 @@ require('gliter.matchit').setup {}
 
 ## The walk
 
-| Key | On an opener or a middle (`if`, `else`, ...) | On a closer (`end`, `</div>`, ...) |
-|-----|----------------------------------------------|-------------------------------------|
-| `M` | its matching closer, nesting counted — `if` ↔ `end`, `else` → the `end` | its matching opener |
-| `gM` | a middle: its matching opener (`else` → the `if`); an opener: the previous member of the chain at the same level (an `elseif` before it, a sibling's closer, the enclosing `if`) | its matching opener |
+The chains, per filetype, are three Vim regexes — openers (`if`, `for`,
+`function`, ...), closers (`end`, `endif`, `fi`, ...), middles (`else`,
+`elseif`, `catch`, ...) — and the walks are bracket walks:
 
-So `M` and `gM` differ only on the middle words — on `else`, `M` goes to
-the end of the block and `gM` back to its start — and on tags, where both
-toggle the two edges. In Visual mode the selection extends to the match;
-after an operator (`dM`, `cM`) the whole match word is included, the way
-`d%` includes both brackets.
+| Key | On an opener or a middle (`if`, `elseif`, `else`, ...) | On a closer (`end`, `</div>`, ...) |
+|-----|--------------------------------------------------------|-------------------------------------|
+| `M` | its matching closer, nesting counted — `if` ↔ `end`, `else` → the `end` | its matching opener |
+| `gM` | **the outer level**: on a middle, its matching opener (`else` → the `if`); on an opener, out of the block — the previous member of the enclosing chain (the `elseif`/`else` this group sits after), or the enclosing opener itself: the outer level's group/match_word | its matching opener |
+| `gm` | the chain's **next member, the middles included** — `if` → `elseif` → `else` → `end` — and from the `end` back to its `if`: the cycle wraps, one member per press | back to the chain's opener (`end` → `if`: the wrap) |
+| `]M` | the **next group's opener** at the cursor's level — `while 1<-if 2->function(3`: from `if 2` to the `function(3` of the group after it, the pair's own edges skipped, middles never landed on | the same: the next group's opener |
+| `[M` | the **previous group's opener** at the cursor's level — from `if 2` back to the `while 1` of the group before it | the same: the previous group's opener |
+
+So `M` and `gM` differ only on the middle words and the opener — on
+`else`, `M` goes to the end of the block and `gM` back to its start; on
+an `if`, `gM` steps out of the block to the outer level's match_word.
+`gm` walks every member of the chain one by one, the middle words
+included. `]M`/`[M` move along the groups of one level — the sibling
+blocks — and land on their beginnings, the openers (`while`, `if`,
+`function`, never `elseif`/`else`); the enclosing group's edge, one
+level up, ends the walk with the cursor left where it was.
+
+```lua
+while 1 do          --  [M from the `if 2` below lands HERE (its group's opener)
+end
+if 2 then           --  the cursor's group: [M back, ]M ahead
+end
+function(3)         --  ]M from the `if 2` above lands HERE
+end
+```
+
+In Visual mode the selection extends to the match; after an operator
+(`dM`, `cM`) the whole match word is included, the way `d%` includes
+both brackets.
 
 On a word that is none of the chain — or in a filetype with no chains —
 the key falls back to plain `%`: brackets, and everything
@@ -40,7 +62,9 @@ file the winning mapping came from.
 
 HTML tags: from `<div ...>` to the matching `</div>` and back, counting
 nested `<div>`s of the same name; self-closing tags (`<br/>`) count for
-nothing; the cursor can be anywhere inside the tag.
+nothing; the cursor can be anywhere inside the tag. `gm` on a tag pair
+is `M` (edge to edge); `]M`/`[M` walk the neighboring pairs of the same
+name the same way.
 
 ## The chains
 
@@ -69,8 +93,13 @@ buffer-local mapping that wins there); everywhere else it is this module's.
 ```lua
 require('gliter.matchit').setup {
   keys = {
-    match = 'M',  -- n/x/o: jump to the matching keyword / tag / bracket
-    back  = 'gM', -- n/x/o: the same walk, the other way
+    match = 'M',   -- n/x/o: jump to the matching keyword / tag / bracket
+    back  = 'gM',  -- n/x/o: the other way — on an opener, out to the
+                   --   outer level's group/match_word
+    member = 'gm', -- n/x/o: the chain's next member, middles included
+                   --   (if → elseif → else → end → if …, wrapping)
+    next_group = ']M', -- n/x/o: the next group's opener at this level
+    prev_group = '[M', -- n/x/o: the previous group's opener at this level
   },
   words = {},               -- your chains, merged over the built-ins
   tags = { 'html', 'xhtml', 'xml' }, -- filetypes with <tag> matching

@@ -8,7 +8,9 @@
 -- quotes and separators), gliter.sessions (:mksession with a memory),
 -- gliter.readme (the project's readme, tracked like recent files),
 -- gliter.justify (g=, the paragraph reflowed both-margins-flush),
--- gliter.matchit (M, % for keywords), gliter.tohtml (:GliterTohtml,
+-- gliter.move (a visual move mode: the motion keys carry the
+-- selection, one undo for the whole session), gliter.matchit
+-- (M, % for keywords), gliter.tohtml (:GliterTohtml,
 -- the buffer out in its syntax colors), gliter.w3 (the web in a
 -- buffer), gliter.cmd (readline's keys on the built-in command line,
 -- and the history's continuation ghosted after it), gliter.which

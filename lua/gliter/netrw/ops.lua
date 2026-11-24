@@ -71,6 +71,8 @@ local function items(n)
 end
 
 --- Marked paths of `kind` (any kind when nil), else the entry under the cursor.
+--- `.` and `..` — entries only so Enter can browse them (see listing.lua) —
+--- are never targets: nothing is copied, renamed or deleted through them.
 ---@param ctx GliterNetrwCtx
 ---@param kind? GliterNetrwMarkKind
 ---@return string[]
@@ -85,7 +87,7 @@ local function targets(ctx, kind)
     return list
   end
   local e = netrw.entry_at_cursor(ctx)
-  if e then
+  if e and e.name ~= '.' and e.name ~= '..' then
     return { e.path }
   end
   ui.notify('No file or directory here.', WARN)
@@ -444,9 +446,46 @@ end
 -- parser reads the entry and these open it.
 ---------------------------------------------------------------------------
 
+--- Neovim 0.12's own directory browser (augroup nvim.dir) leaves behind
+--- buffers of filetype `directory`: one empty line, nothing netrw owns. A
+--- later `:edit <dir>` REUSES such a buffer by name, and netrw never gets
+--- to list it — the "empty buffer" a custom listing's <CR> opens. A
+--- directory is therefore never opened onto one: any stale buffer for the
+--- path that no window shows is wiped first, so netrw builds a fresh one.
+---@param path string
+local function drop_stale_dir_buffers(path)
+  local want = (vim.fs.normalize(path):gsub('/+$', ''))
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.bo[b].filetype == 'directory' then
+      local name = (vim.api.nvim_buf_get_name(b):gsub('/+$', ''))
+      if name == want and #vim.fn.win_findbuf(b) == 0 then
+        pcall(vim.api.nvim_buf_delete, b, { force = true })
+      end
+    end
+  end
+end
+
+--- Last resort for a window that still ended up on a `directory` buffer
+--- (one a window was already showing, which cannot be wiped): ask netrw
+--- itself to browse the path in this window.
+---@param path string
+local function force_netrw(path)
+  if vim.bo.filetype == 'directory' and vim.fn.exists(':Explore') == 2 then
+    pcall(vim.cmd, 'silent! Explore ' .. vim.fn.fnameescape(path))
+  end
+end
+
 --- <CR>/o/v/t on a custom listing: open the entry under the cursor — a
 --- directory is browsed, a file edited — with `how` ('edit', 'split',
 --- 'vsplit', 'tabedit'), the way netrw's own keys do on its listings.
+--- A browsed directory is settled after netrw has finished listing the
+--- new directory — scheduled, and only when the buffer really is a netrw
+--- one: netrw writes its listing asynchronously enough that a synchronous
+--- settle can read a half-written buffer whose filetype may not be 'netrw'
+--- yet. A buffer whose render failed once gets its retry HERE, inside the
+--- schedule: the failure's stamp comes off, and the settle re-renders —
+--- once per visit, the failure notice still said once per message (see
+--- the stamp note below).
 ---@param how 'edit'|'split'|'vsplit'|'tabedit'
 function M.open(how)
   local ctx = context()
@@ -457,9 +496,42 @@ function M.open(how)
   if not e then
     return
   end
+  if e.is_dir then
+    drop_stale_dir_buffers(e.path)
+  end
   local ok, err = pcall(vim.cmd, how .. ' ' .. vim.fn.fnameescape(e.path))
   if not ok then
     ui.notify(err, ERROR)
+    return
+  end
+  if e.is_dir then
+    force_netrw(e.path)
+    -- A buffer whose render failed once carries the failure's stamp, and
+    -- the retry waits for a re-list that the buffer-reuse path never
+    -- makes: with g:netrw_fastbrowse at its default 2, browsing a
+    -- directory whose buffer still exists jumps to it under
+    -- eventignore=all — no re-list, no announcement, not one line
+    -- touched, so the changedtick never moves and render()'s stamp says
+    -- "already done" about a listing that was never made. The visit
+    -- itself is the retry: the stamp comes off a buffer that is not
+    -- showing the custom listing, and the settle below renders it — a
+    -- still-broken command re-stamps and re-notifies once per message,
+    -- so a visit costs one run, never a loop. (A buffer that IS showing
+    -- the custom listing keeps its stamp: nothing failed there.)
+    local settle = require('gliter.netrw')._settle
+    if type(settle) == 'function' then
+      vim.schedule(function()
+        local nbuf = vim.api.nvim_get_current_buf()
+        if vim.api.nvim_buf_is_valid(nbuf) and vim.bo[nbuf].filetype == 'netrw' then
+          if vim.b[nbuf].gliter_netrw_custom ~= true then
+            pcall(function()
+              vim.b[nbuf].gliter_netrw_custom_tick = nil
+            end)
+          end
+          settle(nbuf)
+        end
+      end)
+    end
   end
 end
 
@@ -480,11 +552,41 @@ function M.open_prevwin()
   if not prev or prev == 0 or prev == ctx.win or not vim.api.nvim_win_is_valid(prev) then
     return M.open('split')
   end
+  if e.is_dir then
+    drop_stale_dir_buffers(e.path)
+  end
   local ok, err = pcall(vim.api.nvim_win_call, prev, function()
     vim.cmd('edit ' .. vim.fn.fnameescape(e.path))
+    if e.is_dir then
+      force_netrw(e.path)
+    end
   end)
   if not ok then
     ui.notify(err, ERROR)
+    return
+  end
+  if e.is_dir then
+    -- the same scheduled, filetype-guarded settle M.open gives a browsed
+    -- directory (see there), and the same retry: a failed render's stamp
+    -- must not outlive the visit
+    local settle = require('gliter.netrw')._settle
+    if type(settle) == 'function' then
+      vim.schedule(function()
+        if vim.api.nvim_win_is_valid(prev) then
+          pcall(vim.api.nvim_win_call, prev, function()
+            local nbuf = vim.api.nvim_get_current_buf()
+            if vim.api.nvim_buf_is_valid(nbuf) and vim.bo[nbuf].filetype == 'netrw' then
+              if vim.b[nbuf].gliter_netrw_custom ~= true then
+                pcall(function()
+                  vim.b[nbuf].gliter_netrw_custom_tick = nil
+                end)
+              end
+              settle(nbuf)
+            end
+          end)
+        end
+      end)
+    end
   end
 end
 

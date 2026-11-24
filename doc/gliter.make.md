@@ -21,19 +21,37 @@ top of the built-ins.
   everything by default, `go build ./...` for go, `cargo build` for rust,
   `zig build` for zig, `cmake --build build` for cmake, `pypy3 %` for python
   (runs the file, so you get the real traceback; `python -m py_compile %`
-  sits commented in the table for a syntax-check-only variant), `latexmk`
+  sits commented in the table for a syntax-check-only variant), `sh %` for
+  shell scripts (bash and zsh files are `sh` too — the script runs), `latexmk`
   for tex. They are ordinary buffer-local options afterwards: `:setl
   makeprg=...` on a buffer still wins (that buffer keeps yours), and so does
-  a global `:set makeprg=...` that is not the default. `errorformats` does
+  a global `:set makeprg=...` that is not the default. A `:compiler` a
+  filetype's own plugin installed is not your hand either — sh.vim runs
+  `compiler bash` under `b:is_bash` (makeprg `bash -n`, no file at all: the
+  build would read its script off stdin forever) and `compiler shellcheck`
+  when that is installed — and the table's row wins over it (`sh = 'sh %'`
+  is the default: `<Leader>lm` on a shell script runs it; the apply is
+  scheduled past the ftplugin chain so the compiler it installs cannot
+  clobber the row afterwards); a row set to `false` leaves
+  the filetype's own makeprg alone. `errorformats` does
   the same for `'errorformat'` (cargo's ` --> file:line:col` lines and
   python's `  File "x.py", line N, in <module>` tracebacks — both shapes —
-  are spoken by default; the value is a *list* per filetype, and each entry
+  are spoken by default; the value is a *list* per key, and each entry
   is tried on a line of its own before Vim's default `'errorformat'` gets
   its turn — the way Emacs' `compilation-error-regexp-alist` works, and
   unlike one merged `'errorformat'`, which cannot backtrack: a half-matching
   pattern in front eats the line before the patterns behind ever see it,
   which is exactly how python's bare `  File "x.py", line 2` of syntax
-  errors used to go unrecognized).
+  errors used to go unrecognized). The keys are filetypes — and the
+  *program's first word* too: love2d's `love` is spoken by default
+  (`set makeprg=love\\ .` in a lua buffer is how a love project marks
+  itself), so `Error: Syntax error: main.lua:8: ...` lines and the
+  engine's runtime errors parse with real locations, while the stack
+  frames — `[love "boot.lua"]:352: ...` — are read by Vim's default
+  errorformat, which runs last as the `file:line:col` fallback for
+  anything the specific patterns did not catch. Specific-first is the
+  order: a per-filetype or per-program pattern always gets the line
+  before the generic pile does.
 - **Runs it the Emacs way**: `<Leader>lm` (Spacemacs' compile key) — or
   `:GliterMake` — opens a window at the bottom, echoes the command as the
   first line, and streams stdout and stderr into it as they arrive. The
@@ -134,6 +152,41 @@ fixed, like Emacs'.
     :GliterRun [args]     run the current file (runner.programs; args appended)
     :GliterGrep [pat]     ripgrep a pattern (prompted when absent)
 
+## Prompting for the command
+
+`'makeprg'` is an ordinary option — gliter's per-filetype table only
+sets a buffer-local value — so Vim's own asking idiom works verbatim:
+prompt for the command, set the option, run the build. The output
+streams into the compilation buffer, every recognized line fills the
+quickfix with a jump-to location, and `n` / `p` / `<CR>` walk them
+(the span landed on flashed, or selected with `<CR>`):
+
+```vim
+:let &makeprg = input('Enter make command: ') | GliterMake
+```
+
+`input()` shows the prompt on the command line and returns what was
+typed — `&makeprg` (the option, not a variable) takes it as the new
+program, and `:GliterMake` runs it through the whole pipeline:
+streaming output, ANSI colors, `'errorformat'` matching, the quickfix
+list. As a key instead of a one-off:
+
+```lua
+vim.keymap.set('n', '<Leader>lb', function()
+  vim.cmd([[let &makeprg = input('Enter make command: ')]])
+  require('gliter.make').run()
+end)
+```
+
+`let &makeprg` sets the GLOBAL option — every buffer's next `<Leader>lm`
+runs the asked command (gliter's per-filetype rows still win in the
+buffers they cover: the table is what sets the buffer-local value, and
+a local beats the global). Spell it `let &l:makeprg = ...` to keep the
+asked command to THIS buffer; `r` in the output re-runs it either way.
+Feed it anything that prints `file:line:col` — `gcc -Wall %`,
+`luacheck %`, `rg --vimgrep foo .` — and the locations land in the
+quickfix, one jump each.
+
 ## Options
 
     require('gliter.make').setup {
@@ -154,13 +207,16 @@ fixed, like Emacs'.
         python = 'pypy3 %', -- run the file: real tracebacks
         tex = 'latexmk -pdf -interaction=nonstopmode %',
       },
-      errorformats = {       -- 'errorformat' per filetype (nil = default);
-                             -- a LIST: each entry gets a whole try per line,
-                             -- before Vim's default — a merged format cannot
-                             -- backtrack (a half-matching pattern in front
-                             -- eats the line). A string still works too.
+      errorformats = {       -- 'errorformat' per filetype or per program
+                             -- (the makeprg's first word); a LIST: each
+                             -- entry gets a whole try per line, before
+                             -- Vim's default — a merged format cannot
+                             -- backtrack (a half-matching pattern in
+                             -- front eats the line). A string works too.
         rust = { '%E%.%#-->\\ %f:%l:%c,%Wwarning:%m' },
         python = { '  File "%f"\\, line %l%.%#' },
+        love = { 'Error: Syntax error: %f:%l: %m',
+                 'Error: %f:%l: %m' },  -- `love .` (love2d)
       },
       height = 12,           -- output window height
       ansi = true,           -- render ANSI colors (terminal look)

@@ -4,6 +4,7 @@
 --- We read netrw's documented state (`b:netrw_curdir`, `w:netrw_liststyle`, `w:netrw_treetop`,
 --- `w:netrw_bannercnt`), parse the listing text, and ask netrw to refresh itself afterwards.
 local fs = require('gliter.netrw.fs')
+local config = require('gliter.netrw.config')
 
 local M = {}
 
@@ -25,6 +26,26 @@ M.THIN, M.LONG, M.WIDE, M.TREE = 0, 1, 2, 3
 ---`file*`, the text a `/` search in the buffer matches
 ---@field path string   absolute path
 ---@field is_dir boolean netrw shows it with a trailing slash
+
+--- The first listing line when the window never saw this buffer's listing:
+--- netrw's banner is `"`-prefixed lines, and the listing starts at the first
+--- line that is not one. A window that jumped to an already-listed buffer
+--- (g:netrw_fastbrowse=2 reuses them under eventignore=all — no listing
+--- runs, so no w:netrw_bannercnt is set for the window) carries none of its
+--- own, and reading the banner off the text keeps a render from writing the
+--- custom listing over it from line 1.
+---@param buf integer
+---@return integer
+local function banner_end(buf)
+  local n = vim.api.nvim_buf_line_count(buf)
+  for i = 1, math.min(n, 20) do
+    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1] or ''
+    if l:sub(1, 1) ~= '"' then
+      return i
+    end
+  end
+  return math.min(n, 20) + 1
+end
 
 ---@param buf? integer
 ---@param win? integer
@@ -59,7 +80,7 @@ function M.context(buf, win)
     win = win,
     root = fs.normalize(root),
     style = style,
-    first = vim.w[win].netrw_bannercnt or 1,
+    first = vim.w[win].netrw_bannercnt or banner_end(buf),
   }
 end
 
@@ -90,13 +111,21 @@ local function resolve(dir, raw)
 end
 
 local function make(lnum, col, raw, dir, name, is_dir)
+  local path
+  if name == '..' then
+    path = fs.dirname(dir) -- the parent, as netrw's own Enter on `..` browses it
+  elseif name == '.' then
+    path = dir
+  else
+    path = fs.join(dir, name)
+  end
   return {
     lnum = lnum,
     col = col,
     end_col = col + #raw,
     name = name,
     display = raw,
-    path = fs.join(dir, name),
+    path = path,
     is_dir = is_dir,
   }
 end
@@ -149,12 +178,73 @@ local function wide_cells(line)
 end
 
 ---------------------------------------------------------------------------
--- Custom listing (`setup { listing = 'ls -ltrhF' }`; rendered by custom.lua)
+-- Custom listing (`setup { listing = 'ls -ltrhF --color=always' }`;
+-- rendered by custom.lua, colored by color.lua)
 ---------------------------------------------------------------------------
 
 --- ls's classify suffixes: `/` directory, `@` symlink, `*` executable,
 --- `|` fifo, `=` socket.
 local CLASSIFY = '/%@*|='
+
+--- Read a token the way the shell would: `'my dir'`, `"my dir"`, `my\ dir`,
+--- `'it'\''s'` — the forms eza, exa, GNU ls (`--quoting-style=shell-escape`,
+--- the default) and `ls -b` print around a name with spaces, quotes or
+--- other characters a shell would read — and become the plain name when
+--- the shell's quoting comes off. Unquoted tokens come back unchanged.
+--- (`\x` -> `x`, `'x'` -> `x`, `"x"` -> `x`, `"x"`'s `\x` -> `x`; a lone
+--- quote or backslash at the end is kept — half a pair quotes nothing.)
+---@param s string
+---@return string
+local function shell_unescape(s)
+  if not (s:find("['\\\"]", 1) or s:find('\\', 1, true)) then
+    return s
+  end
+  local out, i, n = {}, 1, #s
+  while i <= n do
+    local c = s:sub(i, i)
+    if c == '\\' and i < n then
+      out[#out + 1] = s:sub(i + 1, i + 1)
+      i = i + 2
+    elseif c == "'" or c == '"' then
+      local q = c
+      i = i + 1
+      while i <= n do
+        local d = s:sub(i, i)
+        if d == q then
+          i = i + 1
+          break
+        elseif d == '\\' and q == '"' and i < n then
+          out[#out + 1] = s:sub(i + 1, i + 1)
+          i = i + 2
+        else
+          out[#out + 1] = d
+          i = i + 1
+        end
+      end
+    else
+      out[#out + 1] = c
+      i = i + 1
+    end
+  end
+  return table.concat(out)
+end
+
+--- A token wrapped in ONE pair of single quotes, however sloppily: some
+--- listing tools quote a spaced name by wrapping it and never escape the
+--- apostrophes inside (`'it's here'`, `'quote'd file.txt'`). The shell's
+--- own reading of that token stops at the first inner quote and loses the
+--- character; here the OUTERMOST pair comes off instead — everything
+--- between the first quote and the last one is the name. Only tried after
+--- the shell reading failed to match an entry, so a name that really ends
+--- in a quote (and resolved as printed) is never misread.
+---@param s string
+---@return string
+local function naive_unquote(s)
+  if #s >= 2 and s:sub(1, 1) == "'" and s:sub(-1) == "'" then
+    return s:sub(2, -2)
+  end
+  return s
+end
 
 --- The real entries of `dir` as a name -> is_dir table.
 local function name_set(dir)
@@ -165,20 +255,97 @@ local function name_set(dir)
   return set
 end
 
---- A shown token back to a real entry: the token itself when a file wears
---- every character of its name (a name may legitimately end in `*`), else
---- the token minus one classify suffix — and whether that suffix was the
---- directory `/`.
-local function resolve_custom(set, token)
+--- One surface form of a token against the real entries: the name as
+--- printed, then its `./`-stripped and classify-suffix-stripped readings.
+---@param set table
+---@param token string
+---@return string? name, boolean? is_dir
+local function resolve_one(set, token)
   if token == '' then
     return nil
   end
   if set[token] ~= nil then
     return token, set[token]
   end
+  -- `.` and `..`, when a listing prints them (`ls -la` does, `eza -l`
+  -- does not), are entries of a kind: netrw's own Enter browses up from
+  -- `..` and re-lists on `.` — Enter on the custom listing must do the
+  -- same, not announce that nothing is there.
+  if token == '.' or token == '..' then
+    return token, true
+  end
+  -- a leading `./` (`find .` prints it on every line) is part of no name
+  if token:sub(1, 2) == './' then
+    local t = token:sub(3)
+    if set[t] ~= nil then
+      return t, set[t]
+    end
+    token = t
+  end
   local base, suffix = token:match('^(.-)([' .. CLASSIFY .. '])$')
   if base ~= nil and base ~= '' and set[base] ~= nil then
     return base, suffix == '/'
+  end
+  return nil
+end
+
+--- A shown token back to a real entry: the token itself when a file wears
+--- every character of its name (a name may legitimately end in `*`), else
+--- the token minus one classify suffix — and whether that suffix was the
+--- directory `/`. A shell-quoted token (`'my dir/'`, `my\ dir`) is read
+--- through the shell's eyes first, so the quoting a listing command puts
+--- around a name with spaces never hides the entry it wraps.
+---@param set table
+---@param token string
+---@return string? name, boolean? is_dir
+local function resolve_custom(set, token)
+  local name, is_dir = resolve_one(set, token)
+  if name then
+    return name, is_dir
+  end
+  local bare = shell_unescape(token)
+  if bare ~= token and bare ~= '' then
+    name, is_dir = resolve_one(set, bare)
+    if name then
+      return name, is_dir
+    end
+  end
+  -- the sloppy quoting (`'it's here'`): the shell reading lost the inner
+  -- quote — the outermost pair may be the wrapper the tool meant
+  local outer = naive_unquote(token)
+  if outer ~= token and outer ~= '' then
+    return resolve_one(set, outer)
+  end
+  return nil
+end
+
+--- A token that names no entry of `dir` may still name a file under it:
+--- `fd .` prints `sub/file.lua`, `git ls-files` the tracked paths. The
+--- token is read as a path relative to `dir` — a leading `./` dropped,
+--- ls's classify suffixes and the shell quoting around a spaced name
+--- (`'my dir/file'`) read the same way — and when the filesystem
+--- has it, it becomes an entry, one that opens (`listing_paths`).
+---@param root string
+---@param token string
+---@return string? name, boolean? is_dir
+local function resolve_path(root, token)
+  if token == '' then
+    return nil
+  end
+  for _, form in ipairs({ token, shell_unescape(token), naive_unquote(token) }) do
+    local t = form:match('^%./(.+)') or form
+    if t ~= '' and t ~= '/' and t ~= '.' and t ~= '..' and t:sub(1, 1) ~= '/' then
+      local is_dir = t:sub(-1) == '/'
+      t = t:gsub('[' .. CLASSIFY .. ']$', '')
+      if t ~= '' and t ~= '.' and t ~= '..' then
+        -- the filesystem decides: a token that is not a path under `root`
+        -- (an `ls -l` line's metadata, a heading, a summary) stats to nothing
+        local st = vim.uv.fs_stat(fs.join(root, t))
+        if st then
+          return t, st.type == 'directory' or is_dir
+        end
+      end
+    end
   end
   return nil
 end
@@ -212,7 +379,7 @@ end
 ---      target` reads as `link`, while a file genuinely named `x -> y` is
 ---      still tried whole (it only loses to a plain `x` sitting next to it,
 ---      a shape no listing can tell apart).
-local function parse_custom_line(set, dir, line, lnum, out)
+local function parse_custom_line(set, dir, line, lnum, out, paths)
   if line == '' then
     return
   end
@@ -254,6 +421,13 @@ local function parse_custom_line(set, dir, line, lnum, out)
         out[#out + 1] = make(lnum, pos - 1, token, dir, name, is_dir)
         return true
       end
+      if paths then
+        local rel, pdir = resolve_path(dir, token)
+        if rel then
+          out[#out + 1] = make(lnum, pos - 1, token, dir, rel, pdir)
+          return true
+        end
+      end
     end
     return false
   end
@@ -272,6 +446,121 @@ local function parse_custom_line(set, dir, line, lnum, out)
   suffix_from(line)
 end
 
+---------------------------------------------------------------------------
+-- Custom listing, `tree` shape: an outline under connector glyphs
+---------------------------------------------------------------------------
+
+-- tree's indentation units and connectors, utf-8 and --charset=ascii both.
+-- tree 2.x prints '│' followed by two non-breaking spaces and a space
+-- (eight bytes: '\226\148\130\194\160\194\160 '); older trees use '│   '
+-- (six); the continuation below a last sibling is four plain spaces;
+-- --charset=ascii uses '|   ' and '|-- ' / '`-- '.
+local TREE_UNITS = {
+  '\226\148\130\194\160\194\160 ', 8,
+  '\226\148\130   ', 6,
+  '    ', 4,
+  '|   ', 4,
+}
+local TREE_CONNECTORS = { '├── ', '└── ', '|-- ', '`-- ' }
+
+--- Where a tree line's entry sits: the position after the indentation,
+--- the depth (indentation units), and the connector's byte length — 0
+--- when the line has none (the root line above the outline, the summary
+--- below it, or a line of some other command's shape).
+---@param line string
+---@return integer pos, integer depth, integer conn
+local function tree_walk(line)
+  local pos, depth = 1, 0
+  while true do
+    local matched = false
+    for u = 1, #TREE_UNITS, 2 do
+      local unit, len = TREE_UNITS[u], TREE_UNITS[u + 1]
+      if line:sub(pos, pos + len - 1) == unit then
+        pos = pos + len
+        depth = depth + 1
+        matched = true
+        break
+      end
+    end
+    if not matched then
+      break
+    end
+  end
+  for _, c in ipairs(TREE_CONNECTORS) do
+    if line:sub(pos, pos + #c - 1) == c then
+      return pos, depth, #c
+    end
+  end
+  return pos, depth, 0
+end
+
+--- `tree` and its kin (`tree -C`, `tree -F --dirsfirst`, `--charset=ascii`):
+--- entries hang under connector glyphs at depths set by the indentation —
+--- `├── name`, `│   └── name` — and an entry's parent is the last
+--- directory seen one level up (parents[0] is the listed directory). The
+--- outline is walked from the listing's first line whatever range was
+--- asked for: the parent chain is state only the whole outline builds.
+--- The root line tree prints above the outline and the summary below it
+--- carry no connector and no entry — except a root line that names a
+--- directory of the listing (`tree sub` prints `sub`), which then becomes
+--- the outline's parent. `-F` puts ls's classify suffixes on the names;
+--- without it the filesystem says what each name is. A symlink's
+--- ` -> target` tail is cut, as in the flat shapes.
+---@param ctx GliterNetrwCtx
+---@param set table root directory's name set
+---@param from integer
+---@param to integer
+---@param out GliterNetrwEntry[]
+local function parse_custom_tree(ctx, set, from, to, out)
+  local lines = vim.api.nvim_buf_get_lines(ctx.buf, ctx.first - 1, to, false)
+  local parents = { [0] = ctx.root }
+  local sets = { [ctx.root] = set }
+  local function set_of(dir)
+    if not sets[dir] then
+      sets[dir] = name_set(dir)
+    end
+    return sets[dir]
+  end
+  local saw_entry = false
+  for idx, line in ipairs(lines) do
+    local lnum = ctx.first + idx - 1
+    local pos, depth, conn = tree_walk(line)
+    if conn == 0 then
+      if not saw_entry and line:match('%S') then
+        -- above the outline: the root line. `.` (or a path) leaves the
+        -- listed directory as the parent; `tree sub`'s `sub` takes over.
+        -- `.` itself — the root line `tree` prints — is the listed
+        -- directory already, and `..` never re-roots anything.
+        local raw = line:gsub('%s+$', '')
+        local name, is_dir = resolve_custom(set, raw)
+        if name and is_dir and name ~= '.' and name ~= '..' then
+          parents[0] = fs.join(ctx.root, name)
+        end
+      end
+      -- below the outline (or nowhere near one): the summary tree
+      -- trails with, blank padding — never an entry
+    else
+      saw_entry = true
+      local raw = line:sub(pos + conn)
+      if raw:find(' -> ', 1, true) then
+        raw = raw:gsub(' %-> .*$', '')
+      end
+      local parent = parents[depth]
+      if parent then
+        local name, is_dir = resolve_custom(set_of(parent), raw)
+        if name then
+          if lnum >= from then
+            out[#out + 1] = make(lnum, pos + conn - 1, raw, parent, name, is_dir)
+          end
+          if is_dir then
+            parents[depth + 1] = fs.join(parent, name)
+          end
+        end
+      end
+    end
+  end
+end
+
 ---@param ctx GliterNetrwCtx
 ---@param from integer
 ---@param to integer
@@ -280,8 +569,16 @@ local function parse_custom(ctx, from, to)
   local lines = vim.api.nvim_buf_get_lines(ctx.buf, from - 1, to, false)
   local set = name_set(ctx.root)
   local out = {}
+  -- one connector anywhere in the range: the range is a tree outline
+  for _, line in ipairs(lines) do
+    local _, _, conn = tree_walk(line)
+    if conn > 0 then
+      parse_custom_tree(ctx, set, from, to, out)
+      return out
+    end
+  end
   for idx, line in ipairs(lines) do
-    parse_custom_line(set, ctx.root, line, from + idx - 1, out)
+    parse_custom_line(set, ctx.root, line, from + idx - 1, out, config.options.listing_paths)
   end
   return out
 end

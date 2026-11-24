@@ -1,5 +1,5 @@
 *gliter.ctags.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 19
+                          For Neovim >= 0.9.0    Last change: 2026 November 24
 
 ==============================================================================
 Table of Contents                             *gliter.ctags-table-of-contents*
@@ -37,7 +37,7 @@ WHAT IT DOES                          *gliter.ctags-gliter.ctags-what-it-does*
     and spoken to in its own dialect. A run that fails does not give up:
     a stale `--langdef=` for a language ctags already knows — hiding in
     `~/.ctags.d`, `~/.ctags`, a `.ctags` in the working directory, or
-    `$CTAGS` — makes every run die with `ctags: Language "css" already defined`, so a failure is retried with the preload option files off
+    `$CTAGS` — makes every run die with `ctags: Language "css" already   defined`, so a failure is retried with the preload option files off
     (`--options=NONE`), and then **from a sandbox**: a scratch directory,
     a dark `HOME`, a scrubbed environment and absolute paths — nowhere an
     option file can hide, whichever ctags flavor it is (exuberant has no
@@ -46,7 +46,7 @@ WHAT IT DOES                          *gliter.ctags-gliter.ctags-what-it-does*
     only honored as the **first** option — the leading options are scanned
     for it and the scan stops at the first flag it does not know, so
     anywhere later NONE is parsed as an option _file_ literally so named
-    and the run dies with `ctags: cannot stat "NONE" : No such file or directory`. gliter always puts it first. The ladder
+    and the run dies with `ctags: cannot stat "NONE" : No such file or   directory`. gliter always puts it first. The ladder
     restarts from the first rung every time: a fallback that worked
     yesterday must not hide the one that works today, and the final
     failure prints the exact command it tried.

@@ -1,5 +1,5 @@
 *gliter.zoom.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 19
+                          For Neovim >= 0.9.0    Last change: 2026 November 24
 
 ==============================================================================
 Table of Contents                              *gliter.zoom-table-of-contents*

@@ -49,6 +49,16 @@
 ---   gliter.justify        g= and :GliterJustify: reflow the paragraph
 ---                         (or the selection, or a range) and justify
 ---                         it — both margins flush, the way M-q fills
+---   gliter.move          a visual move mode: <C-m> turns the
+---                         selection into a thing the keys carry -
+---                         h j k l, the goto motions 0 $ gg G f t
+---                         F T and the word motions w e b W E B
+---                         (line-wise, the cursor's line alone);
+---                         C-m C-o/
+---                         C-i walk this file's jumps (Vim's own
+---                         jump list, other files' entries skipped,
+---                         never taken), C-t transposes words, one
+---                         undo for the session
 ---   gliter.matchit        M (the key you gave %) jumps between the
 ---                         words that bracket a block — if/end,
 ---                         function/endfunction, <div>/</div> — with
@@ -114,6 +124,7 @@ local modules = {
   { 'sessions',     'gliter.sessions' },
   { 'readme',       'gliter.readme' },
   { 'justify',      'gliter.justify' },
+  { 'move',         'gliter.move' },
   { 'matchit',      'gliter.matchit' },
   { 'tohtml',       'gliter.tohtml' },
   { 'w3',           'gliter.w3' },

@@ -345,14 +345,15 @@ function M.attach(buf)
     map('n', km.paste, actions.paste, 'apply the marks: paste, delete, archive')
     map('n', km.clear, actions.clear, 'clear all marks')
     map('n', km.edit, actions.edit_toggle, 'toggle in-place editing of the listing')
+
   end)
 
   -- A custom listing (see custom.lua) is text netrw's own keys cannot read:
   -- the ones that take the entry off the line — Enter, the splits, the
   -- preview, netrw's own marks — are replaced by parser-driven versions,
   -- and the ones whose job gliter already has a key for are simply removed
-  -- (netrw puts its own back on the next re-list, should the style leave
-  -- custom listing again).
+  -- (netrw puts its own back on the next re-list when no listing is
+  -- configured).
   if vim.b[buf].gliter_netrw_custom then
     attach_custom(buf, km)
   else

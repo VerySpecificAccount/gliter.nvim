@@ -40,7 +40,12 @@ local M = {}
 ---@field conflict 'ask'|'overwrite'|'skip'|'rename'
 ---@field indicators { copy: string|false, move: string|false, delete: string|false, shell: string|false, archive: string|false, run: string|false, copied: string|false, moved: string|false, new: string|false }
 ---@field edit { confirm: boolean }   `confirm`: ask before applying additions/renames/deletions
----@field listing string|false      a shell command whose output replaces netrw's listing (e.g. 'ls -ltrhF', 'ls -d */'); false/nil = netrw's own listings
+---@field listing string|false      a shell command whose output replaces the netrw listing (e.g. 'eza -l', 'ls -ltrhF', 'ls -d */', 'tree -CF --dirsfirst'); false/nil = netrw's own listings
+---@field keep_marks boolean        keep the marks when a window browses into another directory (default true: they follow you, so `y` here, <CR> there, `p` pastes into the directory you are in; false forgets them on every switch, so a stale set is never pasted into an unrelated directory)
+---@field listing_default boolean   start every new netrw window in the custom listing slot — as if the user had pressed `i` into it; `i` can still cycle away, and the choice is remembered per window (default false)
+---@field listing_color boolean     ask known commands for their colored output — `ls --color=always`, `tree -C`, `fd --color=always` — when the listing command carries no color flag of its own; the ANSI escapes become highlights (default true)
+---@field listing_paths boolean     on the custom listing, read a token that names no entry of the listed directory as a path under it (`fd .`'s `sub/file.lua` opens) (default false)
+---@field soft_colors boolean        soften the colors, dired-style: netrw's own listing groups (netrwDir, netrwExe, ...) and every ANSI color a custom listing command sends are muted into a background-aware pastel instead of the theme-bright originals (default true)
 ---@field notify_level integer    minimum vim.log.levels value to display
 M.defaults = {
   keys = {
@@ -84,11 +89,43 @@ M.defaults = {
   -- netrw's own buffer-local keys removed in netrw buffers (gliter.netrw takes over the job).
   native_unmap = { 'gR', '+', '%' },
   conflict = 'ask',
-  -- A shell command whose output replaces netrw's listing (rendered by
-  -- custom.lua): 'ls -ltrhF' for the details, 'ls -d */' for directories
-  -- only — anything that runs in a shell and prints entry names. nil (or
-  -- false) keeps netrw's own listings and their styles.
+  -- A shell command whose output replaces the netrw listing (rendered by
+  -- custom.lua, colored by color.lua): 'eza -l' for the details,
+  -- 'eza -l --icons --git' for the works, 'ls -ltrhF' for the classic
+  -- long listing, 'ls -d */' for directories only, 'tree -CF --dirsfirst'
+  -- for an outline — anything that runs in a shell and prints entry names.
+  -- nil (or false) keeps netrw's own listings and their styles, and
+  -- nothing of the defaults is touched.
   listing = nil,
+  -- Start every new netrw window in the custom listing slot (default
+  -- false). `i` can still cycle away from it; once a window has left the
+  -- custom slot (w:gliter_netrw_liststyle == false) settle() will not
+  -- re-arm it, so the user's per-window choice is respected.
+  listing_default = false,
+  -- Keep the marks when a window switches to another directory (<CR> into a
+  -- subdirectory, `-` up). Default true: they follow you, so `y` here,
+  -- <CR> there, `p` pastes into the directory you are in. With false the
+  -- marks belong to the listing they were set on and are forgotten on a
+  -- switch, so a stale set is never pasted into an unrelated directory.
+  keep_marks = true,
+  -- Colors, on by default: a known listing command (`ls`, `tree`, `fd`,
+  -- ...) is asked for its colored output — `ls --color=always`, `tree
+  -- -C` — when the command carries no color flag of its own, and any
+  -- command's ANSI escapes become highlights (color.lua), the way a
+  -- terminal, or Emacs' dired, shows them. The option only adds the
+  -- flag; ANSI output is read whatever it came from.
+  listing_color = true,
+  -- `fd .` prints paths under the listed directory (`sub/file.lua`),
+  -- not its entries; with this on, a token that names no entry of the
+  -- directory is read as a path under it — and opens. Default off: the
+  -- plain listings (`ls`, `tree`) need nothing of it.
+  listing_paths = false,
+  -- Soft colors, on by default: netrw's own listing groups and every
+  -- ANSI color a custom listing command sends are muted into a
+  -- background-aware pastel — dired's calm — instead of the
+  -- theme-bright originals (see soft.lua). false puts everything back
+  -- exactly as it was.
+  soft_colors = true,
   indicators = {
     copy = '  [copy]',
     move = '  [move]',

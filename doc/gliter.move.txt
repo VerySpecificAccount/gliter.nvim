@@ -1,0 +1,363 @@
+*gliter.move.txt*
+                          For Neovim >= 0.9.0    Last change: 2026 November 24
+
+==============================================================================
+Table of Contents                              *gliter.move-table-of-contents*
+
+1. gliter.move                                       |gliter.move-gliter.move|
+  - What it does                        |gliter.move-gliter.move-what-it-does|
+  - How it ends — keep, undo, exchange|gliter.move-gliter.move-how-it-ends-—-keep,-undo,-exchange|
+  - One undo                                |gliter.move-gliter.move-one-undo|
+  - The carry as an API: carry_to|gliter.move-gliter.move-the-carry-as-an-api:-carry_to|
+  - Options                                  |gliter.move-gliter.move-options|
+  - Not the whole of gomove, not the whole of iswap|gliter.move-gliter.move-not-the-whole-of-gomove,-not-the-whole-of-iswap|
+  - Stolen from                          |gliter.move-gliter.move-stolen-from|
+
+==============================================================================
+1. gliter.move                                       *gliter.move-gliter.move*
+
+A visual move mode: one key turns the current Visual selection into a thing you
+carry around the buffer (Neovim 0.10+). Enabled on `<C-m>` — charwise,
+linewise and blockwise selections alike — the keys stop extending the
+selection and start MOVING it, nvim-gomove’s engine doing the moving. A
+session that ends the wrong way takes its changes back in ONE step.
+
+>lua
+    require('gliter').setup { move = {} }
+    -- or on its own:
+    require('gliter.move').setup {}
+<
+
+
+WHAT IT DOES                            *gliter.move-gliter.move-what-it-does*
+
+Press `<C-m>` on a selection and a hint line appears — the mode is on:
+
+  -----------------------------------------------------------------------
+  Key                  What moves
+  -------------------- --------------------------------------------------
+  h j k l              the gomove moves — [count] works (3j is three
+                       rows)
+
+  0                    the line’s left edge: the selection slides flush
+                       against it (a line selection dedents fully)
+
+  $                    the line’s right edge: the selection slides flush
+                       against the end of the longest row it covers
+
+  gg G                 the buffer’s edges: the lines/the block flush to
+                       the top (gg) or bottom (G); {count}gg lands the
+                       top row on line {count}
+
+  f{char}              slides the selection toward the char — the carry
+                       lands just past it, the whole char carried intact;
+                       [count] is the Nth occurrence
+
+  t{char}              the same, stopping one short of that
+
+  F{char}              the backward twin: slides the selection back
+                       toward the char
+
+  T{char}              the same, stopping one short of it
+
+  w e b                the word motions, LINE-WISE: the carry is the
+                       slide — a word never takes the selection to
+                       another row. FORWARD is Vim’s own direction, left
+                       to right, and the walk is ROW-FIRST: the words
+                       of the line the CURSOR is on — the first line,
+                       where the cursor was — are walked before any
+                       other’s, and a selection that goes VERTICAL —
+                       several rows, V or <C-v> alike — moves forward by
+                       the words in the first line, then after reaching
+                       its end goes on to the NEXT BIGGEST LINE: the
+                       next row that still reaches past the edge, the
+                       walk continuing from there (visual mode’s own
+                       expanding-to-the-right shape), walking all the
+                       way to the RIGHT END of the LONGEST LINE covered
+                       — past it w is dead — w landing the selection’s
+                       right edge on the next word’s first character, e
+                       on the next word-end, one word a press. b is the
+                       backward twin: the left edge lands on the previous word’s
+                       first, right to left — with a FLOOR: the beginning
+                       of the line, b keeps moving back until column 1,
+                       all the way to 0, and past it is dead. On a line
+                       selection (V) the carry is the COLUMN shift: every
+                       line moves together by exact columns, the walking
+                       edge the cursor row’s own first word — and b’s
+                       floor is the FULL dedent, every line to its own
+                       beginning. [count] is the Nth word. A word is
+                       Vim’s own ('iskeyword'), the way w reads one
+
+  W E B                the WORD twins of w/e/b: Vim’s WORDs — non-blank
+                       runs, punctuation riding along — the same
+                       line-wise carry (W the right edge on the next
+                       WORD’s first character, E its end, B the left edge
+                       on the previous WORD’s first), the same
+                       cursor’s-line world, the same b-to-0 floor
+
+  1..9                 a count for the next move
+
+  o / O                not a move: the cursor walks to another corner of
+                       the selection — which corner is the moving one is
+                       now that one
+  -----------------------------------------------------------------------
+What each move does per selection kind — gomove’s own truth:
+
+- **charwise, one line** — `j`/`k` lift the span onto the neighbor row
+    at the same column; `h`/`l` slide it through the line, swapping with
+    the text passed over (`abXYcd` with `XY` selected slides right to
+    `abcXYd`).
+- **charwise, several lines** — from the line’s left edge, whole rows
+    move as a block of lines, exactly the way `V` moves; otherwise the
+    RECTANGLE of the selection’s corners moves as a block: cut out of its
+    rows, re-inserted a block of rows away at the same column — the
+    landing rows shift right, nothing is overwritten.
+- **linewise (V)** — the lines move as a block; `h`/`l` indent and
+    unindent one shiftwidth per press (the classic drag).
+- **blockwise (<C-v>)** — `j`/`k` cut the block out and re-INSERT it
+    a block of rows away at the same column; `h`/`l` slide the block
+    THROUGH each row, short rows padded where the block needs room to
+    land (the hug).
+
+The goto motions (`0 $ gg G f t F T w e b W E B`) carry the selection as the
+same two carries `hjkl` speak — rows, then columns. What the selection passes
+over shifts behind it, order intact. A pending `f`/`t`/`F`/`T` char is let go
+with `<Esc>` — the mode stays. `0` `$` `f` `t` `F` `T` are dead on a line
+selection (`0` dedents it fully, and the word motions carry it by columns —
+see below); `w`/`e`/`b`/ `W`/`E`/`B` read the CURSOR’S OWN LINE alone — all
+the way to the right to that line’s end, `b` back to the line’s own
+beginning — and never take the selection to another row; `gg`/`G` work on
+every shape. The SCREEN cursor stays in the buffer for the whole ride — on
+the selection, on the jump — never on the message line at the bottom of the
+screen under the hint (0.11+; an older nvim shows it there, the way a
+`getchar()` always has).
+
+
+FROM NORMAL MODE: THE <C-M> MODE ~
+
+`<C-m>` in normal mode is a MODE — a getchar() loop, the visual session’s
+own shape, that stays until it is left:
+
+- **<C-m>{C-h C-j C-k C-l}** — TRANSPOSE WORDS, Emacs’
+    `transpose-words` with Vim’s own words (`'iskeyword'` decides what a
+    word is, the way `w` does), in the DIRECTION the key names — the
+    Ctrl is ON, the way the exchange’s aim keys spell theirs: `C-m C-l`
+    with the word after the cursor’s (Emacs’ own `M-t`), `C-m C-h` with
+    the one before, `C-m C-j` with the word below, `C-m C-k` with the
+    word above — the word whose span sits nearest the cursor word’s
+    column, blank lines crossed the way `w` crosses them. The plain
+    `h j k l o i` are REPLACED, not aliased — `C-m C-o` is not the same
+    as `C-m o` — a plain letter is a key the mode does not know. In
+    `foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is
+    `foo(baz, bar)` — the args
+    trade places, the punctuation does not move, everything around both
+    words stays exactly what it was. On a gap — whitespace, a comma —
+    the words AROUND it are the pair (Emacs’ rule), `C-h` and `C-l`
+    reading the same pair from either side. The trade is made ONCE and
+    the mode is done with it — a second trade takes another `<C-m>`
+    (the old `<C-t>{direction}` spelling works the same). `[count]`
+    bubbles the word along in that direction, the cursor riding it.
+- **<C-m>C-o / <C-m>C-i** — THE JUMPS, THIS FILE’S TRAIL ONLY:
+    Vim’s own jump list (your `gg`, `G`, marks, `%` — everything that
+    jumps feeds it) walked with only the current file’s entries applied —
+    a jump that went to another file is skipped, never taken, so a
+    session of file1 > file2 > file1 walks file1’s positions alone.
+    `C-o` steps back, `C-i` forward — the cursor LANDS on each location,
+    `[count]` locations at a time, and every press keeps walking — the
+    keys mix freely inside one `<C-m>`
+    (`<C-m>C-i C-o C-o` steps forward one, back two); the first
+    step back leaves the newest position remembered the native way, so
+    a step forward returns to it. `jumps.scope = 'own'` walks a
+    separate list per file instead — Vim’s jump records bucketed per
+    file, each list outliving Vim’s window-shared list and untouched by
+    what the other files do.
+
+`[count]` works typed before `<C-m>` or between the mode’s keys. `<Esc>` and
+`<C-c>` leave the mode quietly; anything else — a letter, an operator — is
+let go with a short notice. Note that `<C-m>` and `<CR>` are the same key on
+most terminals; buffers whose `<CR>` is their own (netrw’s open, the
+quickfix’s select, help’s follow) never see the mode — their `<CR>` maps
+are buffer-local and a local map beats a global one — and `keys.normal =
+false` gives Enter back everywhere.
+
+
+HOW IT ENDS — KEEP, UNDO, EXCHANGE *gliter.move-gliter.move-how-it-ends-—-keep,-undo,-exchange*
+
+- `<C-t>` — KEEP: the moves stay, the selection is dropped, back to
+    normal mode on what moved (`<C-m><C-t>`, the prefix spelling, still
+    works inside the mode).
+- `<Esc>` / `<C-c>` — UNDO: the buffer goes back to the state it had
+    when the mode was entered — the undo sequence number the session
+    started from is remembered, and the cancellation is one
+    `:undo {seq}` to it, exact from any depth — and the cursor returns
+    to where the mode was entered. Any key the mode does not know — an
+    operator, a mode change, anything that is not a move — does the
+    same: leaving is a cancellation, not a confirmation.
+- `<C-x>` — EXCHANGE, entirely inside the mode: the first press marks
+    the selection as the first area of an exchange — it stays
+    highlighted and the mode exits to normal mode for selecting the
+    second area. A move made first is UNDONE by the press: the
+    exchange trades what was SELECTED, not where a session carried it,
+    so the buffer goes back to the state it had at entry and the
+    selection back to where it started before anything is marked. The
+    second `<C-x>` — pressed in the mode again
+    (`C-m`, moves, `<C-x>`), on a plain Visual selection, or from
+    normal mode — swaps the two areas, whatever each side selected;
+    moves made before it are undone the same
+    way. From normal mode the four DIRECTION keys are spelled with the
+    Ctrl on: `C-x C-h/j/k/l` swaps with the word before, the word
+    after, the line below, the line above — the mode’s own directions,
+    read off the live cursor. The plain `h j k l` after `C-x` are free
+    — they just move, an accidental `hjkl` never swaps a sliver — and
+    every other motion aims natively: `C-x w`, `C-x f{char}`, `C-x $`,
+    `C-x gg` and the rest, the motion’s own span.
+
+A MIXED pair swaps too — a block against a word, a span or a line,
+    whatever each side selected: the word lands in the rectangle’s
+    top-left (the word right on the block’s own top row trades inside
+    that row, the span path’s own shape), and the rectangle’s rows are
+    carried into the word’s place — a span’s row count follows the
+    text, the row splitting under the pieces; a line range’s rows are
+    the text; the rectangle’s other rows keep the blank the cut
+    leaves. A marked block highlights the RECTANGLE it selected — one
+    mark per row, each that row’s own slice — never the diagonal a
+    single mark would light (a block that reads as turned into a
+    plain Visual selection the moment `<C-x>` is pressed on it).
+
+A pending exchange does not wait forever: `<Esc>` and `<C-c>` cancel it (normal
+or Visual mode — abandoning the second selection counts), and so does
+ANYTHING that touches the buffer or leaves the normal/Visual pair — an edit,
+a paste, a delete, one of your own move-line maps, a jump into insert. Motions
+never cancel it: `C-x` and the aim keys are how the second area is picked. The
+marked area is a snapshot; the moment something else changes the text, the wait
+is over and the mark is cleared with a short notice.
+
+Normal mode’s own `<C-x>` (the decrement) is never taken: the exchange lives
+inside the mode and on the Visual-mode key, and the aim form is a buffer-local
+shadow that exists only while an exchange is waiting — `C-x C-h/j/k/l` for
+the directions, `C-x{motion}` for any motion.
+
+
+ONE UNDO                                    *gliter.move-gliter.move-one-undo*
+
+The moves are one undo entry: every move after the first is `:undojoin`-ed onto
+it, so a cancellation is a single `undo` — and `u` after a KEPT session takes
+the whole session back too.
+
+
+THE CARRY AS AN API: CARRY_TO *gliter.move-gliter.move-the-carry-as-an-api:-carry_to*
+
+The goto motions’ engine is exposed for other plugins to aim — a flash.nvim
+jump, a treehopper node, your own maps:
+
+>lua
+    require('gliter.move').carry_to({ row, col }, region?)
+<
+
+`{ row, col }` is 1-based byte columns; `region` is the selection to carry (`{
+mode = 'v'|'V'|'\22', r1, c1, r2, c2 }`), the live Visual selection when left
+out. The selection is left selected where it lands, and the carry is one undo
+entry.
+
+With flash.nvim <https://github.com/folke/flash.nvim> — `S` on a selection
+picks a label, the selection lands where it points (flash’s positions are
+0-based, `carry_to`’s are 1-based):
+
+>lua
+    vim.keymap.set('x', 'S', function()
+      local v1, v2 = vim.fn.getpos('v'), vim.fn.getpos('.')
+      local kind = vim.fn.visualmode()
+      require('flash').jump({
+        action = function(match)
+          require('gliter.move').carry_to({ match.pos[1] + 1, match.pos[2] + 1 }, {
+            mode = kind, r1 = v1[2], c1 = v1[3], r2 = v2[2], c2 = v2[3],
+          })
+        end,
+      })
+    end)
+<
+
+The selection is read BEFORE flash runs (flash’s label UI leaves Visual mode)
+and handed to `carry_to` as the explicit region.
+
+
+OPTIONS                                      *gliter.move-gliter.move-options*
+
+>lua
+    require('gliter.move').setup {
+      keys = {
+        mode = '<C-m>',     -- x: enter the move mode on the selection
+        normal = '<C-m>',   -- n: the mode — C-h C-j C-k C-l transpose
+                            --    the adjacent words in that direction
+                            --    (once), C-o/C-i walk this file's jumps,
+                            --    repeatable inside one <C-m> — the plain
+                            --    h j k l o i are replaced, not aliased
+                            --    (false keeps Enter)
+        confirm = '<C-t>',  -- in-mode: keep the moves
+        exchange = '<C-x>', -- in-mode / x: mark the area, then swap
+                            --    (a pending wait also takes
+                            --    <C-x>{motion} from normal mode)
+      },
+      hint = true,            -- echo the keys while the mode runs
+      reindent = false,       -- reindent lines after a vertical line move
+      move_past_end_col = true, -- a block may slide past the end of the
+                              -- shortest row it covers (the hug)
+      jumps = {
+        scope = 'file', -- 'file': C-m C-o/C-i walk Vim's own jump list,
+                        -- only the current file's entries — a jump that
+                        -- went to another file is skipped, never taken;
+                        -- 'own': a separate jump list per file (Vim's
+                        -- jump records, bucketed per file, each file's
+                        -- list its own — a list outlives Vim's
+                        -- window-shared list and survives the file's
+                        -- closing, in memory for the session)
+        max = 100,      -- 'own' only: each file's list depth
+      },
+    }
+<
+
+The gomove pair are that plugin’s own options, passed through: `reindent`
+(defaults to `true` there, `false` here — a move moves, it does not reformat)
+and `move_past_end_col` (defaults to `false` there, `true` here). The `jumps`
+table shapes `<C-m><C-o>`/`<C-m><C-i>`: `scope = 'file'` (the default) keeps
+Vim’s own jump list and walks it with only the current file’s entries
+applied — the walk’s step itself is native (`C-o`/`C-i` fed with the
+distance to the next entry of this file, foreign entries passed over, never
+taken), so the cursor lands the way it always lands and the round trip back to
+where the walk began is Vim’s own; `scope = 'own'` keeps instead a separate
+list per file — every jump Vim records lands in its file’s own list, and a
+file’s list keeps its place while you walk another file’s. The lists of
+`scope = 'own'` remember where jumps happened, not how the text moved since —
+positions are clamped to the file as it stands.
+
+
+NOT THE WHOLE OF GOMOVE, NOT THE WHOLE OF ISWAP *gliter.move-gliter.move-not-the-whole-of-gomove,-not-the-whole-of-iswap*
+
+Use booperlv/nvim-gomove <https://github.com/booperlv/nvim-gomove> for more:
+duplicating while moving, folding handling, stack moves, the diagnostic floats.
+For richer EXCHANGES than the two-area swap here — treesitter-aware swapping,
+dragging across levels — use mizlan/iswap.nvim
+<https://github.com/mizlan/iswap.nvim>.
+
+
+STOLEN FROM                              *gliter.move-gliter.move-stolen-from*
+
+The moving engine is booperlv/nvim-gomove’s (2021), ported into
+`lua/gliter/move/gomove.lua` — the line moves (`:move`, the indent drag), the
+block moves (the cut-and-paste rectangle, the virtualedit walk, the
+trailing-whitespace bookkeeping), the fold-aware destination arithmetic. The
+goto motions (`0 $ gg G f t F T w e b`) are gliter’s own, composed from
+gomove’s carries. The features themselves are Emacs’: `transpose-lines` on
+`C-x C-t` and `transpose-words` on `M-t` — the transpose family the GNU Emacs
+manual has carried since the 1980s — swap the line under point (or the words
+around it), and a numeric argument repeats the swap into a move. rejeep’s
+drag-stuff (2010) turned the swap into a carry: `M-<up>`/`M-<down>` take the
+line, or the region, along. tommcdo/vim-exchange (2013) is the two-press swap
+(`cxx` … `cxx`). gliter.move folds the carry, the exchange and the transpose
+into one mode with one undo.
+
+Requires Neovim 0.10+.
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

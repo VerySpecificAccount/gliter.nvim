@@ -78,6 +78,23 @@
 ---   :GliterMakeStop         stop the running build
 ---   :GliterRun [args]       run the current file (runner.programs)
 ---   :GliterGrep [pat]       ripgrep a pattern (prompted when absent)
+---
+---   PROMPTING FOR THE COMMAND — 'makeprg' is an ordinary option, so
+---   Vim's own asking idiom works: prompt, set, run, and the quickfix
+---   fills with jump-to locations (n / p step through them, <CR>
+---   jumps with the span selected):
+---
+---     :let &makeprg = input('Enter make command: ') | GliterMake
+---
+---   or as a key (the asked command lasts — `let &makeprg` sets the
+---   GLOBAL option, gliter's per-filetype rows still winning in the
+---   buffers they cover; `let &l:makeprg = ...` keeps it to THIS
+---   buffer):
+---
+---     vim.keymap.set('n', '<Leader>lb', function()
+---       vim.cmd([[let &makeprg = input('Enter make command: ')]])
+---       require('gliter.make').run()
+---     end)
 
 local M = {}
 
@@ -110,6 +127,10 @@ local defaults = {
     zig = 'zig build',
     -- python = 'python -m py_compile %', -- syntax check only: no run, no traceback
     python = 'pypy3 %', -- run the file: full tracebacks with jumpable locations
+    sh = 'sh %', -- run the script (bash/zsh files are ft=sh too). The sh
+    -- ftplugin's own `compiler bash` would otherwise own the buffer —
+    -- makeprg `bash -n`, no file at all, a shell that reads its script
+    -- off stdin forever
     tex = 'latexmk -pdf -interaction=nonstopmode %',
   },
   -- 'errorformat' per filetype, replacing Vim's default in those buffers.
@@ -132,6 +153,13 @@ local defaults = {
     -- character comes from the caret line or the message's quoted symbols
     -- afterwards (see note_exact).
     python = { '  File "%f"\\, line %l%.%#' },
+    -- love2d, keyed by the PROGRAM (a love project's buffers are plain
+    -- lua — `set makeprg=love\\ .` is what marks them): the engine's
+    -- syntax errors, and its runtime errors (`Error: main.lua:3: ...`).
+    -- The stack frames — `[love "boot.lua"]:352: ...`, `[string
+    -- "conf.lua"]:1: ...` — need nothing here: Vim's default errorformat
+    -- reads a quoted file name already (it runs last, see M.run).
+    love = { 'Error: Syntax error: %f:%l: %m', 'Error: %f:%l: %m' },
   },
   height = 12, -- output window height
   ansi = true, -- render ANSI escape sequences as highlights (terminal look)
@@ -1079,6 +1107,13 @@ local function jump_to(e, focus, style)
   end
   local entry = e.entry
   if entry.file then
+    -- a bogus parse (a format that ate a whole line as a "file name") must
+    -- not open an empty buffer named after the message and crash on the
+    -- cursor: the file has to exist for the jump to make sense
+    if vim.fn.filereadable(entry.file) == 0 then
+      vim.notify(('[gliter] cannot open %s — not a readable file'):format(vim.fn.fnamemodify(entry.file, ':~:.')), vim.log.levels.WARN)
+      return
+    end
     if focus and vim.api.nvim_win_is_valid(w) then
       -- first, not last: switching the current window after the selection
       -- started would end Visual mode the instant it appears
@@ -1091,7 +1126,7 @@ local function jump_to(e, focus, style)
       local col, len = entry.col or 0, entry.len or 0
       if col == 0 and entry.symbols then
         -- whatever the format said: the offending symbol is on the line
-        local line = vim.api.nvim_buf_get_lines(0, entry.lnum - 1, entry.lnum, false)[1] or ''
+        local line = vim.api.nvim_buf_get_lines(0, math.max(entry.lnum, 1) - 1, math.max(entry.lnum, 1), false)[1] or ''
         for _, sym in ipairs(entry.symbols) do
           local s, e2 = line:find(sym, 1, true)
           if s then
@@ -1100,13 +1135,17 @@ local function jump_to(e, focus, style)
           end
         end
       end
-      local row = math.max(entry.lnum, 1)
-      vim.api.nvim_win_set_cursor(w, { row, math.max(col - 1, 0) })
+      -- the source may have changed since it was compiled (or the parse
+      -- never had a line at all): the cursor is clamped into the buffer
+      -- that is actually there, never set out of range
+      local nlines = math.max(vim.api.nvim_buf_line_count(0), 1)
+      local row = math.min(math.max(entry.lnum or 1, 1), nlines)
+      pcall(vim.api.nvim_win_set_cursor, 0, { row, math.max(col - 1, 0) })
       vim.cmd('normal! zv')
       if style ~= 'flash' and col > 0 and len > 0 then
         -- v from the first character of the span, cursor slid onto the last
         vim.cmd('normal! v')
-        vim.api.nvim_win_set_cursor(w, { row, math.max(col - 1, 0) + math.max(len - 1, 0) })
+        pcall(vim.api.nvim_win_set_cursor, 0, { row, math.max(col - 1, 0) + math.max(len - 1, 0) })
       end
       vim.cmd('normal! zz')
     end)
@@ -1638,9 +1677,17 @@ function M.run(args, o)
   if S.efm == '' then -- errorformat is global-local, like makeprg
     S.efm = vim.o.errorformat
   end
-  -- The formats tried per output line, in order (see parse_error): the
-  -- buffer's own — the user's :setl efm=..., or gliter's per-filetype one —
-  -- then the rest of this filetype's list, then Vim's default.
+  -- The formats tried per output line, in order (see parse_error): this
+  -- run's own (a grep's), then the SPECIFIC ones — the filetype's list,
+  -- then the first word of the program (love2d's `love`, keyed under
+  -- errorformats by the program, not the filetype) — and only then the
+  -- generic: the buffer's own errorformat when the user :setl'd one that
+  -- differs from the global, and Vim's default errorformat last, as the
+  -- f:l:c fallback for anything the specific patterns did not catch.
+  -- Specific-first is the point: Vim's default pile has a pattern for
+  -- nearly everything, and run first it eats lines a real pattern
+  -- should have had (a love2d `Error: Syntax error: main.lua:8:` line
+  -- used to become a file named after the whole message).
   local list = {}
   local function add(efm)
     if type(efm) == 'string' and efm ~= '' and not vim.tbl_contains(list, efm) then
@@ -1650,7 +1697,6 @@ function M.run(args, o)
   for _, efm in ipairs(o.efms or {}) do -- this run's own first (a grep's)
     add(efm)
   end
-  add(S.efm)
   local cfgd = cfg.errorformats[vim.bo[origin_buf].filetype]
   if type(cfgd) == 'string' then
     add(cfgd) -- a string value stays supported
@@ -1659,7 +1705,21 @@ function M.run(args, o)
       add(efm)
     end
   end
-  add(vim.o.errorformat)
+  if type(cmd) == 'string' then -- the program's first word (love -> love)
+    local prog = cfg.errorformats[cmd:match('^%s*(%S+)') or '']
+    if type(prog) == 'table' then
+      for _, efm in ipairs(prog) do
+        add(efm)
+      end
+    elseif type(prog) == 'string' then
+      add(prog)
+    end
+  end
+  local bo_efm = vim.bo[origin_buf].errorformat
+  if bo_efm ~= '' and bo_efm ~= vim.o.errorformat then
+    add(bo_efm) -- the user's own :setl efm=... — not gliter's per-ft one
+  end
+  add(vim.o.errorformat) -- Vim's default pile: the f:l:c fallback, last
   S.efms = list
   S.carry = ''
   S.errors = {}
@@ -1763,7 +1823,14 @@ end
 --------------------------------------------------------------- setup --
 
 --- 'makeprg' (and 'errorformat') for one buffer, from the tables.
-local function apply_to_buf(buf)
+--- `mp0` is the buffer's local 'makeprg' as it stood when the FileType
+--- event was seen — a snapshot taken in the autocmd itself, BEFORE the
+--- ftplugin chain could run (or, when the chain had already run by then,
+--- the post-chain truth). The apply is scheduled past the chain either
+--- way: a value that changed between the snapshot and the apply was
+--- installed by the chain — a `:compiler` the filetype's own ftplugin
+--- ran — and is not the user's hand.
+local function apply_to_buf(buf, mp0)
   if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= '' then
     return
   end
@@ -1771,12 +1838,35 @@ local function apply_to_buf(buf)
   if ft == '' then
     return
   end
-  local prog = cfg.programs[ft] or cfg.programs['*']
+  -- a row set to false leaves the filetype alone (the README's promise):
+  -- false is a word, not a gap — the '*' catch-all never fills it
+  local prog = cfg.programs[ft]
+  if prog == nil then
+    prog = cfg.programs['*']
+  end
+  if prog == false then
+    prog = nil
+  end
   if prog then
-    -- A buffer the user has configured (a local 'makeprg' of their own, or a
-    -- global one that is not the default) is left alone; so is a local value
-    -- gliter itself set earlier. For global-local options vim.bo reads the
-    -- local side only, and it reads as '' when no local value is set.
+    -- A buffer the user has configured (a local 'makeprg' of their own, or
+    -- a global one that is not the default) is left alone; so is a local
+    -- value gliter itself set earlier. For global-local options vim.bo reads
+    -- the local side only, and it reads as '' when no local value is set.
+    --
+    -- A `:compiler` the filetype's own ftplugin installed is NOT the
+    -- user's hand either, and the row wins over it: sh.vim runs
+    -- `compiler bash` under b:is_bash (makeprg `bash -n`, no file at
+    -- all — <Leader>lm would run a shell that reads its script off
+    -- stdin forever) and `compiler shellcheck` when that is installed.
+    -- The ORDER is the trap: this module's FileType autocmd is
+    -- registered before the runtime's ftplugin.vim, so a synchronous
+    -- apply runs FIRST and the ftplugin's compiler CLOBBERS it right
+    -- after — the apply is scheduled past the chain, with the
+    -- pre-chain snapshot to compare against. A makeprg set by hand
+    -- (no compiler ever ran in the buffer) still wins over the table,
+    -- and so does a compiler the USER ran after an apply of ours: the
+    -- marker (b:gliter_make_prg) says an apply happened here, and a
+    -- value that is neither untouched nor ours is theirs.
     local legacy = { 'python -m py_compile %' } -- defaults of earlier versions: migrate them
     local function untouched(v)
       if v == '' or v == 'make' then
@@ -1794,8 +1884,16 @@ local function apply_to_buf(buf)
       end
       return false
     end
-    if untouched(vim.bo[buf].makeprg) and untouched(vim.o.makeprg) then
+    -- the value as it stands NOW, at the scheduled moment
+    local now = vim.bo[buf].makeprg
+    if (untouched(now)
+        or (mp0 ~= nil and now ~= mp0) -- changed inside the ftplugin chain: the chain's work
+        or (vim.b[buf].current_compiler ~= nil
+          and vim.b[buf].gliter_make_prg == nil)) -- first contact, compiler-owned
+      and untouched(vim.go.makeprg)
+    then
       vim.bo[buf].makeprg = prog
+      vim.b[buf].gliter_make_prg = prog
     end
   end
   local efm = cfg.errorformats[ft]
@@ -1828,11 +1926,18 @@ function M.setup(opts)
     callback = define_highlights,
   })
 
-  -- 'makeprg' per filetype
+  -- 'makeprg' per filetype. The snapshot of the buffer's makeprg is
+  -- taken when the event fires and the apply is SCHEDULED past the
+  -- ftplugin chain: registered before the runtime's ftplugin.vim (the
+  -- init.lua order), a synchronous apply would run first and be
+  -- clobbered by the chain's :compiler right after (see apply_to_buf)
   vim.api.nvim_create_autocmd('FileType', {
     group = vim.api.nvim_create_augroup('GliterMakePrg', { clear = true }),
     callback = function(args)
-      apply_to_buf(args.buf)
+      local mp0 = vim.bo[args.buf].makeprg
+      vim.schedule(function()
+        apply_to_buf(args.buf, mp0)
+      end)
     end,
   })
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do

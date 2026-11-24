@@ -1,5 +1,5 @@
 *gliter.pack.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 19
+                          For Neovim >= 0.9.0    Last change: 2026 November 24
 
 ==============================================================================
 Table of Contents                              *gliter.pack-table-of-contents*
@@ -216,7 +216,7 @@ Commands: `:GliterPack [query]` (no argument: everything), `:GliterPackUpdate`
 
 NOTES                                          *gliter.pack-gliter.pack-notes*
 
-- The "recommended setup" is the first ```lua block in the README that mentions`require(`*and*`setup`/`config`/`opts`; without a match the
+- The "recommended setup" is the first ```lua block in the README that   mentions`require(`*and*`setup`/`config`/`opts`; without a match the
     first block that requires anything; without that, the first lua block
     of all. It is a starting point to review, not gospel — keymaps and
     colors are yours.

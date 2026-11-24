@@ -28,6 +28,7 @@ gliter.make-gliter.make-commands	gliter.make.txt	/*gliter.make-gliter.make-comma
 gliter.make-gliter.make-keys	gliter.make.txt	/*gliter.make-gliter.make-keys*
 gliter.make-gliter.make-limits	gliter.make.txt	/*gliter.make-gliter.make-limits*
 gliter.make-gliter.make-options	gliter.make.txt	/*gliter.make-gliter.make-options*
+gliter.make-gliter.make-prompting-for-the-command	gliter.make.txt	/*gliter.make-gliter.make-prompting-for-the-command*
 gliter.make-gliter.make-stolen-from-emacs	gliter.make.txt	/*gliter.make-gliter.make-stolen-from-emacs*
 gliter.make-gliter.make-the-runner	gliter.make.txt	/*gliter.make-gliter.make-the-runner*
 gliter.make-gliter.make-what-it-does	gliter.make.txt	/*gliter.make-gliter.make-what-it-does*
@@ -40,6 +41,16 @@ gliter.matchit-gliter.matchit-the-chains	gliter.matchit.txt	/*gliter.matchit-gli
 gliter.matchit-gliter.matchit-the-walk	gliter.matchit.txt	/*gliter.matchit-gliter.matchit-the-walk*
 gliter.matchit-table-of-contents	gliter.matchit.txt	/*gliter.matchit-table-of-contents*
 gliter.matchit.txt	gliter.matchit.txt	/*gliter.matchit.txt*
+gliter.move-gliter.move	gliter.move.txt	/*gliter.move-gliter.move*
+gliter.move-gliter.move-how-it-ends-—-keep,-undo,-exchange	gliter.move.txt	/*gliter.move-gliter.move-how-it-ends-—-keep,-undo,-exchange*
+gliter.move-gliter.move-not-the-whole-of-gomove,-not-the-whole-of-iswap	gliter.move.txt	/*gliter.move-gliter.move-not-the-whole-of-gomove,-not-the-whole-of-iswap*
+gliter.move-gliter.move-one-undo	gliter.move.txt	/*gliter.move-gliter.move-one-undo*
+gliter.move-gliter.move-options	gliter.move.txt	/*gliter.move-gliter.move-options*
+gliter.move-gliter.move-stolen-from	gliter.move.txt	/*gliter.move-gliter.move-stolen-from*
+gliter.move-gliter.move-the-carry-as-an-api:-carry_to	gliter.move.txt	/*gliter.move-gliter.move-the-carry-as-an-api:-carry_to*
+gliter.move-gliter.move-what-it-does	gliter.move.txt	/*gliter.move-gliter.move-what-it-does*
+gliter.move-table-of-contents	gliter.move.txt	/*gliter.move-table-of-contents*
+gliter.move.txt	gliter.move.txt	/*gliter.move.txt*
 gliter.multicursor-gliter.multicursor	gliter.multicursor.txt	/*gliter.multicursor-gliter.multicursor*
 gliter.multicursor-gliter.multicursor-before-and-after	gliter.multicursor.txt	/*gliter.multicursor-gliter.multicursor-before-and-after*
 gliter.multicursor-gliter.multicursor-defaults	gliter.multicursor.txt	/*gliter.multicursor-gliter.multicursor-defaults*
@@ -52,6 +63,7 @@ gliter.netrw-gliter.netrw-applying-the-marks-with-p	gliter.netrw.txt	/*gliter.ne
 gliter.netrw-gliter.netrw-bookmarks	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-bookmarks*
 gliter.netrw-gliter.netrw-commands	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-commands*
 gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-editing-the-listing-in-place-(e)*
+gliter.netrw-gliter.netrw-every-netrw-buffer-gets-its-keys	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-every-netrw-buffer-gets-its-keys*
 gliter.netrw-gliter.netrw-ex-commands	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-ex-commands*
 gliter.netrw-gliter.netrw-highlights	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-highlights*
 gliter.netrw-gliter.netrw-install	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-install*
@@ -60,7 +72,7 @@ gliter.netrw-gliter.netrw-marking-many-entries-at-once	gliter.netrw.txt	/*gliter
 gliter.netrw-gliter.netrw-marks	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-marks*
 gliter.netrw-gliter.netrw-other-options	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-other-options*
 gliter.netrw-gliter.netrw-stolen-from-emacs	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-stolen-from-emacs*
-gliter.netrw-gliter.netrw-the-custom-listing-(listing)	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-the-custom-listing-(listing)*
+gliter.netrw-gliter.netrw-the-custom-listing-(listing,-on-netrw’s-i-cycle)	gliter.netrw.txt	/*gliter.netrw-gliter.netrw-the-custom-listing-(listing,-on-netrw’s-i-cycle)*
 gliter.netrw-table-of-contents	gliter.netrw.txt	/*gliter.netrw-table-of-contents*
 gliter.netrw.txt	gliter.netrw.txt	/*gliter.netrw.txt*
 gliter.nvim-gliter	gliter.nvim.txt	/*gliter.nvim-gliter*
@@ -70,6 +82,7 @@ gliter.nvim-gliter-gliter.ctags	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.ctag
 gliter.nvim-gliter-gliter.justify	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.justify*
 gliter.nvim-gliter-gliter.make	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.make*
 gliter.nvim-gliter-gliter.matchit	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.matchit*
+gliter.nvim-gliter-gliter.move	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.move*
 gliter.nvim-gliter-gliter.multicursor	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.multicursor*
 gliter.nvim-gliter-gliter.netrw	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.netrw*
 gliter.nvim-gliter-gliter.readme	gliter.nvim.txt	/*gliter.nvim-gliter-gliter.readme*

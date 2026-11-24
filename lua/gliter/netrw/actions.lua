@@ -44,6 +44,9 @@ function M.mark(kind, range)
     local e = netrw.entry_at_cursor(ctx)
     entries = e and { e } or {}
   end
+  entries = vim.tbl_filter(function(e)
+    return e.name ~= '.' and e.name ~= '..'
+  end, entries)
   if #entries == 0 then
     return ui.notify('No file or directory here.', WARN)
   end
