@@ -691,6 +691,7 @@ spec (`event`, `keys`, `cmd`, `ft`, …) for the plugin:
             }
           end,
         },
+    })
 <
 
 
