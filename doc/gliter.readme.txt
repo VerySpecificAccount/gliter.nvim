@@ -1,5 +1,5 @@
 *gliter.readme.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 24
+                          For Neovim >= 0.9.0    Last change: 2026 November 25
 
 ==============================================================================
 Table of Contents                            *gliter.readme-table-of-contents*
