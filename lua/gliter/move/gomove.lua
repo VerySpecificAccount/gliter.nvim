@@ -319,26 +319,151 @@ function M.line_indent_cols(r1, r2, delta)
 end
 
 ---------------------------------------------------------------------------
--- block moves (gomove's selection/block/*)
+-- block moves (gomove's selection/block/*, rewritten)
+--
+-- A block is a RECTANGLE OF DISPLAY COLUMNS [vc1, vc2] — Vim's own
+-- truth: a blockwise selection covers, on every row it spans, the
+-- whole characters whose screen cells intersect the range, a wide
+-- character straddling an edge included whole, and a blockwise put
+-- lands every row's piece at the cursor's DISPLAY column. The ported
+-- engine once walked the cut out with `l`/`h` under virtualedit and
+-- pasted from a register — a walk of CHARACTER steps fed a distance
+-- counted in BYTES, and on a multibyte row the two disagree: the
+-- block landed past its target, deep in the virtual space past the
+-- row's end, rows padded by runaway widths, pieces at columns that
+-- matched no rectangle — text scrambled. The moves are now pure
+-- Lua on the buffer's lines, display columns the only currency: cut,
+-- slide, insert — a character is never split, a piece never lands off
+-- a character boundary, the rectangle stays a rectangle.
 ---------------------------------------------------------------------------
 
---- Move the rectangle r1..r2 x c1..c2 `distance` rows down (positive)
---- or up: cut out of its rows, paste INSERTED at the destination rows at
---- the same column — the landing rows shift right, nothing is
---- overwritten, the rows it leaves close up. The LIVE selection must be
---- the rectangle (blockwise) when this is called — the session sees to
---- it. Returns the new rectangle, or nil.
-function M.block_vertical_move(r1, r2, c1, c2, distance)
+--- The characters of `line` as a list of { byte_from, byte_to, vcol,
+--- cells } — one entry per character, `vcol` the display column its
+--- first cell occupies (1-based), `cells` how many it occupies. A
+--- character's width is the increment its bytes add to the line's
+--- display width — the honest way to weigh a zero-width character (a
+--- variation selector, a combining mark), which strdisplaywidth
+--- counts as a cell on its own but Vim's own virtcol reads as riding
+--- its base's cell: such a character is FOLDED into the base's entry
+--- (🖼️ one entry, two cells), so the rectangle stays Vim's own
+--- truth — a lone zero-width character with no base takes a cell of
+--- its own.
+local function char_cells(line)
+  local out = {}
+  local pos = vim.str_utf_pos(line)
+  local vcol = 1
+  for i = 1, #pos do
+    local from = pos[i]
+    local to = (pos[i + 1] and pos[i + 1] - 1) or #line
+    local cells = vim.fn.strdisplaywidth(line:sub(1, to))
+      - vim.fn.strdisplaywidth(line:sub(1, from - 1))
+    if cells == 0 and #out > 0 then
+      out[#out][2] = to -- zero-width: folded into its base's entry
+    else
+      if cells < 1 then
+        cells = 1 -- a lone zero-width character: a cell of its own
+      end
+      out[#out + 1] = { from, to, vcol, cells }
+      vcol = vcol + cells
+    end
+  end
+  return out
+end
+
+--- The byte columns of the characters of `line` whose display cells
+--- intersect [vc1, vc2] — the block's own slice of the row. Returns
+--- from_byte, to_byte (1-based, inclusive; nil when nothing
+--- intersects — the row does not reach the block's left edge) and the
+--- display width the slice occupies.
+local function span_at_vcols(line, vc1, vc2)
+  local f, t, w = nil, nil, 0
+  for _, c in ipairs(char_cells(line)) do
+    if c[3] <= vc2 and c[3] + c[4] - 1 >= vc1 then
+      if not f then
+        f = c[1]
+      end
+      t = c[2]
+      w = w + c[4]
+    end
+  end
+  return f, t, w
+end
+
+--- `line` with `text` inserted so its LEFT edge sits on display
+--- column `vc`: the character covering that column (the first whose
+--- last cell reaches it) shifts right, whole — never split; a row too
+--- short for the column is padded with spaces up to it (the hug).
+--- A blockwise put's own landing.
+local function insert_at_vcol(line, vc, text)
+  local dw = vim.fn.strdisplaywidth(line)
+  if vc > dw then -- the row does not reach the column: pad up to it
+    return line .. (' '):rep(vc - dw - 1) .. text
+  end
+  for _, c in ipairs(char_cells(line)) do
+    if c[3] + c[4] - 1 >= vc then
+      return line:sub(1, c[1] - 1) .. text .. line:sub(c[1])
+    end
+  end
+  return line .. text -- past the end: appended
+end
+
+--- Cut the display-column rectangle [vc1, vc2] out of every row of
+--- `arr` (one entry per row, in order): per row, the intersecting
+--- characters removed and the tail CLOSED UP (the way Vim's own
+--- blockwise `x` leaves the row), rows too short for the left edge
+--- untouched. Returns the pieces (one per row, '' for a row that held
+--- nothing) and the rows after the cut.
+local function cut_rect(arr, vc1, vc2)
+  local pieces, rows = {}, {}
+  for i = 1, #arr do
+    local line = arr[i] or ''
+    local f, t = span_at_vcols(line, vc1, vc2)
+    if f then
+      pieces[#pieces + 1] = line:sub(f, t)
+      rows[#rows + 1] = line:sub(1, f - 1) .. line:sub(t + 1)
+    else
+      pieces[#pieces + 1] = ''
+      rows[#rows + 1] = line
+    end
+  end
+  return pieces, rows
+end
+
+--- The byte column of display column `vc` on `line`, for placing a
+--- cursor: the FIRST byte of the character covering it; past the
+--- row's end, the virtual position virtualedit arithmetic speaks —
+--- every column beyond the last character is one cell, so byte
+--- `#line + (vc - dw)` sits exactly on `vc` under virtualedit=all.
+local function byte_at_vcol(line, vc)
+  local dw = vim.fn.strdisplaywidth(line)
+  if vc > dw then
+    return #line + (vc - dw)
+  end
+  for _, c in ipairs(char_cells(line)) do
+    if c[3] + c[4] - 1 >= vc then
+      return c[1]
+    end
+  end
+  return #line + 1
+end
+M.byte_at_vcol = byte_at_vcol -- the session's corners speak it too
+M.vcol_span = span_at_vcols -- the exchange's block cuts speak it too:
+-- the byte span and the cell width of the chars a cell range covers
+
+--- Move the rectangle r1..r2 x [vc1, vc2] `distance` rows down
+--- (positive) or up: cut out of its rows, pasted INSERTED at the
+--- destination rows on the same display columns — the landing rows
+--- shift right, nothing is overwritten, the rows it leaves close up.
+--- The trailing-whitespace bookkeeping rides along: a destination row
+--- shorter than the block's left edge is padded when the block lands
+--- on it, and once the block has moved PAST such a row the padding
+--- goes home (gomove's ledger, in bytes now). Returns the new
+--- rectangle's rows and display columns, or nil.
+function M.block_vertical_move(r1, r2, vc1, vc2, distance)
   M._begin()
   if not vim.o.modifiable or distance == 0 then
     return nil
   end
-  local going_down = (distance > 0)
-  local old_pos = vim.fn.winsaveview()
-
-  local col_start, col_end = math.min(c1, c2), math.max(c1, c2)
-  local width = col_end - col_start
-
   if contains_fold(r1, r2) then
     vim.notify('[gliter.move] a block cannot move across closed folds', vim.log.levels.WARN)
     return nil
@@ -355,150 +480,144 @@ function M.block_vertical_move(r1, r2, c1, c2, distance)
   end
   open_fold(d1, d2)
 
-  -- The trailing-whitespace bookkeeping: a row shorter than the block's
-  -- left edge gets padded when the block lands on it; once the block
-  -- has moved PAST such a row, the padding it left behind goes home
-  -- (gomove's ledger). Rows are recorded before anything is cut.
-  local all_pos = {}
-  for l = d1, d2 do
-    all_pos[#all_pos + 1] = { l, #(vim.fn.getline(l) or '') + 1 }
+  -- the rows the move touches, fetched whole so the indexes stay put
+  local lo = math.min(r1, d1)
+  local hi = math.max(r2, d2)
+  local lines = vim.api.nvim_buf_get_lines(0, lo - 1, hi, false)
+  for i = 1, hi - lo + 1 do
+    lines[i] = lines[i] or ''
   end
+
+  -- the ledger: rows the landing padded (the padding starts where the
+  -- row's own content ended) — stale when anything else touched the
+  -- buffer since the last move
   local trailing = vim.b.gliter_move_trailing or {}
-  -- anything else touched the buffer since the last move: the ledger
-  -- from before describes a buffer that no longer exists
   if vim.b.gliter_move_last_ct ~= vim.b.changedtick then
     trailing = {}
   end
-  for _, pos in ipairs(all_pos) do
-    if pos[2] < col_start then
-      local has = false
-      for _, v in ipairs(trailing) do
-        if v[1] == pos[1] then
-          has = true
-          break
-        end
+
+  -- the cut out of the source rows, then the insert at the
+  -- destination's same columns — an insert, never an overwrite: the
+  -- landing rows shift right, a row shorter than the left edge is
+  -- padded up to it (a piece of its own, '' from a row that held
+  -- nothing, pastes nothing at all)
+  local pieces, cutrows = cut_rect({ unpack(lines, r1 - lo + 1, r2 - lo + 1) }, vc1, vc2)
+  for i = 1, #cutrows do
+    lines[r1 - lo + i] = cutrows[i]
+  end
+  for i = 1, #pieces do
+    local piece = pieces[i]
+    local idx = d1 - lo + i
+    local line = lines[idx] or ''
+    if piece ~= '' then
+      if vim.fn.strdisplaywidth(line) < vc1 then
+        -- the landing pads this row from its own end up to the edge:
+        -- the ledger remembers where the padding starts
+        trailing[#trailing + 1] = { idx + lo - 1, #line + 1 }
       end
-      if not has then
-        trailing[#trailing + 1] = pos
-      end
+      lines[idx] = insert_at_vcol(line, vc1, piece)
     end
   end
 
-  vim.fn.winrestview(old_pos)
-  local register = 'z'
-  local old_reg, old_type = vim.fn.getreg(register), vim.fn.getregtype(register)
-  local old_ve = vim.o.virtualedit
-  vim.o.virtualedit = 'all'
-
-  M._change()
-  vim.cmd('silent! normal! "' .. register .. 'x')
-  vim.fn.cursor(d1, col_start)
-  M._change()
-  vim.cmd('silent! normal! "' .. register .. 'P')
-
-  vim.o.virtualedit = old_ve
-  vim.fn.setreg(register, old_reg, old_type)
-
   -- the ledger's cleanup: entries no longer inside the destination
+  -- keep only the PADDING the landing left — spaces from the recorded
+  -- byte to the row's end, the row's own content never touched; a
+  -- tail that is not pure padding is not ours to take back, the entry
+  -- goes, the row stays. A row the move never touched (outside its
+  -- own span) is cleaned on the live buffer — the entry once just
+  -- went, and the padding a far-away landing left leaked
   local rm = {}
   for i, pos in ipairs(trailing) do
-    local in_dest = false
-    for _, p in ipairs(all_pos) do
-      if p[1] == pos[1] then
-        in_dest = true
-        break
+    if pos[1] < d1 or pos[1] > d2 then
+      local idx = pos[1] - lo + 1
+      if idx >= 1 and idx <= #lines then
+        local cur = lines[idx] or ''
+        if pos[2] > 1 and pos[2] <= #cur + 1 and cur:sub(pos[2]):match('^ *$') then
+          lines[idx] = cur:sub(1, pos[2] - 1)
+        end
+      else
+        local cur = vim.fn.getline(pos[1]) or ''
+        if cur ~= '' and pos[2] > 1 and pos[2] <= #cur + 1
+          and cur:sub(pos[2]):match('^ *$') then
+          M._change() -- the write joins the move's own undo entry
+          vim.api.nvim_buf_set_lines(0, pos[1] - 1, pos[1], false, { cur:sub(1, pos[2] - 1) })
+        end
       end
-    end
-    if not in_dest and vim.fn.getline(pos[1]) ~= '' then
-      vim.fn.cursor(pos)
-      M._change()
-      vim.cmd('normal! dw')
-      rm[#rm + 1] = i
+      rm[#rm + 1] = i -- taken back, or never ours: the entry goes
     end
   end
   for i = #rm, 1, -1 do
     table.remove(trailing, rm[i])
   end
+
+  M._change()
+  vim.api.nvim_buf_set_lines(0, lo - 1, hi, false, lines)
   vim.b.gliter_move_trailing = trailing
   vim.b.gliter_move_last_ct = vim.b.changedtick
-
-  return d1, d2, col_start, col_start + width
+  return d1, d2, vc1, vc2
 end
 
---- Slide the rectangle r1..r2 x c1..c2 `distance` columns right
---- (positive) or left: the block is cut out, the cursor walks to the
---- destination, and the block is pasted there — the characters passed
---- over shift to where the block was. Under virtualedit the walk can
---- carry the cursor past the end of the row (rows are padded as the
---- block lands — the hug), and a column that stalls (the row's edge) is
---- stepped by hand, exactly gomove's arithmetic. The LIVE selection
---- must be the rectangle (blockwise) when this is called. Returns the
---- new rectangle, or nil.
-function M.block_horizontal_move(r1, r2, c1, c2, distance)
+--- Slide the rectangle r1..r2 x [vc1, vc2] `dvc` display columns
+--- right (positive) or left: the block is cut out, and pasted with
+--- its left edge at column vc1 + dvc on the POST-CUT rows — the
+--- characters passed over shift to where the block was, a row too
+--- short for the landing padded up to it (the hug,
+--- move_past_end_col). The pieces keep their own rows; nothing is
+--- overwritten, no character is ever split. Returns the new
+--- rectangle's display columns, or nil.
+function M.block_horizontal_move(r1, r2, vc1, vc2, dvc)
   M._begin()
-  if not vim.o.modifiable or distance == 0 then
+  if not vim.o.modifiable or dvc == 0 then
     return nil
   end
-  local going_right = (distance > 0)
-  local col_start, col_end = math.min(c1, c2), math.max(c1, c2)
-  local width = col_end - col_start
-
-  local register = 'z'
-  local old_reg, old_type = vim.fn.getreg(register), vim.fn.getregtype(register)
-
-  -- the lines' state before deleting anything (for the clamp)
+  local rectw = vc2 - vc1 + 1
   local lines = vim.api.nvim_buf_get_lines(0, r1 - 1, r2, false)
-  table.sort(lines, function(a, b)
-    return #a < #b
-  end)
-
-  local old_ve = vim.o.virtualedit
-  vim.o.virtualedit = 'all'
-
-  M._change()
-  vim.cmd('silent! normal! "' .. register .. 'x')
-
-  -- go to the new destination: one step at a time; when col() stalls
-  -- (the end of the row for l, the start for h) the step is counted by
-  -- hand — the walk's arithmetic tracks the virtual column
-  local destn_start
-  for _ = 1, math.abs(distance) do
-    local last = destn_start
-    vim.cmd('normal! ' .. (going_right and 'l' or 'h'))
-    destn_start = vim.fn.col('.')
-    if last == destn_start then
-      destn_start = destn_start + (going_right and 1 or -1)
-    end
+  for i = 1, #lines do
+    lines[i] = lines[i] or ''
   end
 
-  -- the option to NOT move past the end column of the shortest row
-  if going_right and not M.opts.move_past_end_col then
-    local shortest = #lines[1]
-    if col_end < shortest then
-      if destn_start < shortest then
-        vim.fn.cursor(vim.fn.line('.'), destn_start)
-      else
-        vim.fn.cursor(vim.fn.line('.'), shortest)
-        vim.cmd('normal! ' .. width .. 'h')
-        destn_start = shortest - width
-      end
+  -- the option to NOT move past the end column of the shortest row:
+  -- the right edge clamps to one before it, the rectangle never
+  -- sliding onto the shortest row's last character (pre-cut widths,
+  -- the rows as the selection found them)
+  if dvc > 0 and not M.opts.move_past_end_col then
+    local shortest = math.huge
+    for _, l in ipairs(lines) do
+      shortest = math.min(shortest, vim.fn.strdisplaywidth(l))
+    end
+    if vc2 < shortest then
+      local new_vc2 = math.min(vc1 + dvc + rectw - 1, shortest - 1)
+      dvc = math.max(0, new_vc2 - rectw + 1 - vc1)
     else
-      -- don't move anymore
-      vim.fn.cursor(vim.fn.line('.'), col_start)
-      destn_start = col_start
+      dvc = 0 -- already at or past it: don't move anymore
+    end
+    if dvc == 0 then
+      return nil
+    end
+  end
+
+  local new_vc1 = vc1 + dvc
+  if new_vc1 < 1 then
+    new_vc1 = 1 -- the line's left edge is the floor
+    if new_vc1 == vc1 then
+      return nil
+    end
+  end
+
+  local pieces, cutrows = cut_rect(lines, vc1, vc2)
+  for i = 1, #cutrows do
+    lines[i] = cutrows[i]
+  end
+  for i = 1, #pieces do
+    local piece = pieces[i]
+    if piece ~= '' then
+      lines[i] = insert_at_vcol(lines[i], new_vc1, piece)
     end
   end
 
   M._change()
-  vim.cmd('silent! normal! "' .. register .. 'P')
-
-  vim.o.virtualedit = old_ve
-  vim.fn.setreg(register, old_reg, old_type)
-
-  -- where the put landed: its own left-edge mark — a virtual walk makes
-  -- col() lag behind the cursor's real position
-  local nc1 = vim.fn.getpos("'[")[3]
-  return r1, r2, nc1, nc1 + width
+  vim.api.nvim_buf_set_lines(0, r1 - 1, r2, false, lines)
+  return r1, r2, new_vc1, new_vc1 + rectw - 1
 end
 
 return M
