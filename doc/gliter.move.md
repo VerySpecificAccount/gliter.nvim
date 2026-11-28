@@ -27,8 +27,8 @@ Press `<C-m>` on a selection and a hint line appears — the mode is on:
 | `t{char}` | the same, stopping one short of that |
 | `F{char}` | the backward twin: slides the selection back toward the char |
 | `T{char}` | the same, stopping one short of it |
-| `w` `e` `b` | the word motions, LINE-WISE: the carry is the slide — a word never takes the selection to another row. FORWARD is Vim's own direction, left to right, and the walk's WORLD is the line the CURSOR is on — all the way to the right based on the location of the cursor: the cursor was on the first line of the selection, `w`/`e` go only to the end of that line (the words of no other row are ever read, and past the line's last target the key is dead), `w` landing the selection's right edge on the next word's first character, `e` on the next word-end, one word a press. `b` is the backward twin: the left edge lands on the previous word's first, right to left — with a FLOOR: the beginning of the line, `b` keeps moving back until column 1, all the way to 0, and past it is dead. On a line selection (`V`) the carry is the COLUMN shift: every line moves together by exact columns, the walking edge the cursor row's own first word — and `b`'s floor is the FULL dedent, every line to its own beginning. `[count]` is the Nth word. A word is Vim's own (`'iskeyword'`), the way `w` reads one |
-| `W` `E` `B` | the WORD twins of `w`/`e`/`b`: Vim's WORDs — non-blank runs, punctuation riding along — the same line-wise carry (`W` the right edge on the next WORD's first character, `E` its end, `B` the left edge on the previous WORD's first), the same cursor's-line world, the same `b`-to-0 floor |
+| `w` `e` `b` | the word motions, LINE-WISE: the carry is the slide — a word never takes the selection to another row, and never a word torn by the landing. FORWARD is Vim's own direction, left to right, and the walk's WORLD is the line the CURSOR is on — all the way to the right based on the location of the cursor: the cursor was on the first line of the selection, `w`/`e` go only to the end of that line (the words of no other row are ever read, and past the line's last target the key is dead), `w` landing the selection's right edge ON the next word — its last character, the whole word passed intact (w picks the next word by its start, the way `w` skips from mid-word; landing on the start itself tore the word in half around the selection), `e` on the next word-end, one word a press, the walk alive all the way to the right end of the longest line covered. `b` is the backward twin: the left edge lands on the previous word's first, right to left — with a FLOOR: the beginning of the line, `b` keeps moving back until column 1, all the way to 0, and past it is dead. On a line selection (`V`) the carry is the COLUMN shift: every line moves together by exact columns, the walking edge the cursor row's own first word — and `b`'s floor is the FULL dedent, every line to its own beginning. `[count]` is the Nth word. A word is Vim's own (`'iskeyword'`), the way `w` reads one |
+| `W` `E` `B` | the WORD twins of `w`/`e`/`b`: Vim's WORDs — non-blank runs, punctuation riding along — the same line-wise carry (`W` the right edge ON the next WORD — its last character, `E` its end, `B` the left edge on the previous WORD's first), the same cursor's-line world, the same `b`-to-0 floor |
 | `1`..`9` | a count for the next move |
 | `o` / `O` | not a move: the cursor walks to another corner of the selection — which corner is the moving one is now that one |
 
@@ -52,7 +52,11 @@ What each move does per selection kind — gomove's own truth:
 
 The goto motions (`0 $ gg G f t F T w e b W E B`) carry the selection
 as the same two carries `hjkl` speak — rows, then columns. What the
-selection passes over shifts behind it, order intact. A pending
+selection passes over shifts behind it, order intact — and the word
+motions never tear the words they walk on: `w`/`e` land the selection's
+right edge ON the target word's LAST character, `b` the left edge on
+the previous word's FIRST, every word whole before and after the
+landing. A pending
 `f`/`t`/`F`/`T` char is let go with `<Esc>` — the mode stays. `0` `$`
 `f` `t` `F` `T` are dead on a line selection (`0` dedents it fully, and
 the word motions carry it by columns — see below); `w`/`e`/`b`/
@@ -76,9 +80,12 @@ session's own shape, that stays until it is left:
   word is, the way `w` does), in the DIRECTION the key names — the
   Ctrl is ON, the way the exchange's aim keys spell theirs: `C-m C-l`
   with the word after the cursor's (Emacs' own `M-t`), `C-m C-h` with
-  the one before, `C-m C-j` with the word below, `C-m C-k` with
-  the word above — the word whose span sits nearest the cursor word's
-  column, blank lines crossed the way `w` crosses them. The plain
+  the one before, `C-m C-j` with the word directly below the cursor,
+  `C-m C-k` with the one directly above — the word whose span sits
+  nearest the CURSOR'S own column on the next line that has words
+  (mid-word cursors included: the whole word under the cursor is the
+  one that trades, never torn), blank lines crossed the way `w`
+  crosses them. The plain
   `h j k l o i` are REPLACED, not aliased — `C-m C-o` is not the same
   as `C-m o` — a plain letter is a key the mode does not know. In
   `foo(bar, baz)` the cursor on `bar` and `<C-m>C-l` is `foo(baz, bar)` — the args
