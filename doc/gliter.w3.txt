@@ -1,5 +1,5 @@
 *gliter.w3.txt*
-                          For Neovim >= 0.9.0    Last change: 2026 November 25
+                          For Neovim >= 0.9.0    Last change: 2026 November 28
 
 ==============================================================================
 Table of Contents                                *gliter.w3-table-of-contents*
